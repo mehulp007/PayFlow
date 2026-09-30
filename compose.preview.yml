@@ -1,0 +1,39 @@
+services:
+  api:
+    build:
+      context: .
+      target: api
+    environment:
+      NODE_ENV: preview
+      HOST: 0.0.0.0
+      PORT: 4000
+    volumes:
+      - payroll_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+  web:
+    build:
+      context: .
+      target: web
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN to a DNS name pointing at this VM}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  payroll_data:
+  caddy_data:
+  caddy_config:

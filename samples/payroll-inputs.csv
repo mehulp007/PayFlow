@@ -1,0 +1,3 @@
+employee_id,variable_pay,other_deduction,unpaid_days,working_days,note
+EMP00001,2500,0,0,30,September bonus
+EMP00002,0,0,1,30,One unpaid day

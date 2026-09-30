@@ -1,0 +1,29 @@
+# Public sample-data showcase only. Never connect this service to a live payroll database.
+services:
+  - type: web
+    name: payroll-studio-demo
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm ci && npm run build
+    startCommand: node --max-old-space-size=256 apps/api/dist/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: demo
+      - key: PUBLIC_DEMO
+        value: "1"
+      - key: VITE_PUBLIC_DEMO
+        value: "1"
+      - key: SERVE_WEB
+        value: "1"
+      - key: HOST
+        value: 0.0.0.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: payroll-studio-demo-db
+          property: connectionString
+databases:
+  - name: payroll-studio-demo-db
+    plan: free
+    region: singapore

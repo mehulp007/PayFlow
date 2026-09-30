@@ -1,0 +1,83 @@
+import { useEffect, useState } from 'react';
+import { AlertCircle, ArrowDownToLine, ArrowRight, BadgeCheck, Banknote, CalendarDays,
+  CheckCircle2, ChevronLeft, ChevronRight, CircleAlert, ClipboardCheck, FileSpreadsheet,
+  History, Info, LockKeyhole, Search, Send, ShieldCheck, SlidersHorizontal, Users, Wallet, X } from 'lucide-react';
+import { api, download, money, type Audit, type Exception, type Line, type Page, type Role, type Run } from './api';
+import type { PageName } from './App';
+import { Heading, PanelTitle, Pill, StatCard } from './ui';
+
+type Props={run:Run|null;lines:Page<Line>;exceptions:Exception[];role:Role;busy:boolean;
+  onAction:(path:string,success:string,body?:unknown)=>Promise<void>;onRefresh:()=>Promise<void>;
+  setError:(x:string)=>void;setToast:(x:string)=>void;search:string;onSearch:(x:string)=>void;
+  page:number;onPage:(x:number)=>void;exceptionOnly:boolean;onExceptionOnly:(x:boolean)=>void;
+  onNavigate:(name:PageName)=>void};
+
+export default function PayrollPage(props:Props){
+  const {run,lines,exceptions,role,busy,onAction,onRefresh,setError,setToast,search,onSearch,page,onPage,exceptionOnly,onExceptionOnly}=props;
+  const [selected,setSelected]=useState<Line|null>(null);
+  const [importOpen,setImportOpen]=useState(false);
+  const [approvalOpen,setApprovalOpen]=useState(false);
+  const [approvalNote,setApprovalNote]=useState('');
+  const [auditOpen,setAuditOpen]=useState(false);
+  const [auditEvents,setAuditEvents]=useState<Audit[]>([]);
+  const [fixing,setFixing]=useState('');
+  useEffect(()=>{if(selected){const updated=lines.items.find(x=>x.employeeId===selected.employeeId);if(updated)setSelected(updated);}},[lines,selected?.employeeId]);
+
+  async function fixBank(employeeId:string){
+    setFixing(employeeId);
+    try{
+      await api(`/employees/${employeeId}`,role,{method:'PATCH',body:JSON.stringify({bankReady:true,bankAccountLast4:'1234'})});
+      setToast('Synthetic bank verification added. Recalculate to refresh exceptions.');
+      await onRefresh();
+    }catch(err){setError((err as Error).message);}finally{setFixing('');}
+  }
+  async function openAudit(){try{const events=await api<Audit[]>(`/runs/RUN-2026-09/audit`,role);setAuditEvents(events);setAuditOpen(true);}catch(err){setError((err as Error).message);}}
+  async function exportBank(){try{await download('/runs/RUN-2026-09/export/bank-demo',role);setToast('Fictional demo bank file downloaded.');}catch(err){setError((err as Error).message);}}
+  const status=run?.status ?? 'draft';
+  const canPrepare=['admin','hr-operator','payroll-operator'].includes(role);
+  const canEditBank=['admin','hr-operator'].includes(role);
+  const stages=[['Inputs','Import & validate'],['Review','Calculate & resolve'],['Approval','Finance sign-off'],['Disbursement','Export & reconcile']];
+  const stage=status==='draft'?0:status==='calculated'?1:status==='approval_pending'?2:3;
+  return <>
+    <Heading eyebrow="PAYROLL / RUNS" title="September 2026 payroll" description="1–30 September 2026 · payment date 30 September · All India"
+      action={<div className="header-buttons"><Pill tone={status==='approved'||status==='reconciled'?'success':status==='draft'?'neutral':'info'}>{status.replaceAll('_',' ')}</Pill><button className="button outline" onClick={openAudit}><History size={16}/> Audit trail</button></div>}/>
+    <div className="stepper">{stages.map(([title,sub],index)=><div className={`step ${index<stage?'complete':''} ${index===stage?'current':''}`} key={title}><div className="step-top"><span className="step-circle">{index<stage?<CheckCircle2 size={19}/>:index+1}</span><span className="step-line"/></div><strong>{title}</strong><small>{sub}</small></div>)}</div>
+    <div className="stats-grid"><StatCard label="Employees" value={run?.totalEmployees?.toLocaleString('en-IN') ?? '—'} icon={Users} foot={`${run?.calculatedEmployees ?? 0} calculated`}/><StatCard label="Gross pay" value={run?.gross ?? 0} icon={Wallet} tone="mint" foot="Before deductions"/><StatCard label="Deductions" value={run?.deductions ?? 0} icon={ShieldCheck} tone="rose" foot="Tax & contributions"/><StatCard label="Net pay" value={run?.net ?? 0} icon={Banknote} tone="violet" foot="Pending settlement"/></div>
+    <div className="payroll-layout"><section className="panel payroll-main">
+      <div className="panel-title"><div><h2>Employee calculations</h2><p>Review each payslip and the source of every deduction.</p></div>{canPrepare&&<div className="table-actions"><button className="button subtle" onClick={()=>setImportOpen(true)} disabled={status!=='draft'}><FileSpreadsheet size={16}/> Import inputs</button><button className="button subtle" onClick={()=>onAction('calculate','Payroll calculated. Review all exceptions.')} disabled={busy||!['draft','calculated'].includes(status)}><SlidersHorizontal size={16}/>{busy?'Calculating…':'Calculate'}</button></div>}</div>
+      {run?.calculatedEmployees?<>
+        <div className="filter-row"><div className="table-search"><Search size={17}/><input placeholder="Search name, ID or branch" value={search} onChange={event=>onSearch(event.target.value)}/></div><button className={`filter-chip ${exceptionOnly?'selected':''}`} onClick={()=>{onExceptionOnly(!exceptionOnly);onPage(1);}}><CircleAlert size={16}/> Exceptions only</button><span className="result-count">{lines.total.toLocaleString('en-IN')} results</span></div>
+        <div className="table-scroll"><table><thead><tr><th>Employee</th><th>Branch / State</th><th>Gross pay</th><th>Deductions</th><th>Net pay</th><th>Check</th><th>Details</th></tr></thead><tbody>{lines.items.map(line=><tr key={line.employeeId} onClick={()=>setSelected(line)}><td><strong>{line.employeeName}</strong><small>{line.employeeId}</small></td><td>{line.branch}<small>{line.state}</small></td><td className="numeric">{money(line.gross)}</td><td className="numeric">{money(line.deductions)}</td><td className="numeric net-cell">{money(line.net)}</td><td>{line.flags.some(flag=>flag.severity==='blocking')?<Pill tone="danger">Blocking</Pill>:line.flags.length?<Pill tone="warning">Review</Pill>:<Pill tone="success">Clear</Pill>}</td><td><button className="icon-button" aria-label={`View calculation for ${line.employeeName}`} onClick={()=>setSelected(line)}><ChevronRight size={17}/></button></td></tr>)}</tbody></table></div>
+        <div className="pagination"><span>Showing {(page-1)*lines.size+1}–{Math.min(page*lines.size,lines.total)} of {lines.total.toLocaleString('en-IN')}</span><div><button disabled={page<=1} onClick={()=>onPage(page-1)}><ChevronLeft size={16}/></button><span>Page {page} / {Math.ceil(lines.total/lines.size)}</span><button disabled={page*lines.size>=lines.total} onClick={()=>onPage(page+1)}><ChevronRight size={16}/></button></div></div>
+      </>:<div className="empty-state"><div><ClipboardCheck size={38}/></div><h3>No calculations yet</h3><p>{canPrepare?'Import any variable pay, then calculate this month’s payroll to see employee-level results.':'Calculations will appear after the payroll team prepares this run.'}</p>{canPrepare&&<button className="button primary" disabled={busy} onClick={()=>onAction('calculate','Payroll calculated. Review the exceptions.')}>Calculate demo payroll <ArrowRight size={16}/></button>}</div>}
+    </section>
+    <aside className="panel attention-panel"><div className="attention-heading"><div><h2>Needs attention</h2><p>Resolve blocking items before approval.</p></div><span className="attention-count">{(run?.blocking ?? 0)+(run?.warnings ?? 0)}</span></div>
+      <div className="attention-metrics"><span><CircleAlert size={16}/> {run?.blocking ?? 0} blocking</span><span><AlertCircle size={16}/> {run?.warnings ?? 0} warnings</span></div>
+      <div className="exception-list">{exceptions.slice(0,6).map((exception,index)=><div className={`exception-item ${exception.severity}`} key={`${exception.employeeId}-${exception.code}-${index}`}><div className="exception-symbol">{exception.severity==='blocking'?<CircleAlert size={18}/>:<AlertCircle size={18}/>}</div><div><strong>{exception.name}</strong><span>{exception.message}</span><small>{exception.employeeId} · {exception.code}</small>{exception.code==='BANK_MISSING'&&canEditBank&&<button className="text-button" disabled={fixing===exception.employeeId} onClick={()=>fixBank(exception.employeeId)}>Verify demo bank details <ArrowRight size={14}/></button>}</div></div>)}{!exceptions.length&&<div className="clear-box"><CheckCircle2 size={22}/><strong>{run?.calculatedEmployees?'No exceptions in this run':'Calculate to identify exceptions'}</strong></div>}</div>
+      {exceptions.length>6&&<p className="more-exceptions">Showing the first 6 of {exceptions.length} exceptions</p>}
+      <div className="attention-actions">
+        {status==='calculated'&&canPrepare&&<button className="button primary full" disabled={busy||Boolean(run?.blocking)} onClick={()=>onAction('submit','Payroll submitted to Finance for approval.')}><Send size={16}/> Send for approval</button>}
+        {status==='approval_pending'&&role==='finance-approver'&&<button className="button primary full" disabled={busy} onClick={()=>setApprovalOpen(true)}><BadgeCheck size={17}/> Approve payroll</button>}
+        {status==='approved'&&<><button className="button primary full" onClick={exportBank}><ArrowDownToLine size={17}/> Export demo bank file</button>{role==='finance-approver'&&<button className="button outline full" onClick={()=>onAction('reconcile-demo','Synthetic payment reconciliation recorded.')}>Simulate reconciliation</button>}</>}
+        {status==='reconciled'&&<div className="approved-box"><CheckCircle2 size={19}/> Demo payroll reconciled</div>}
+        {status==='draft'&&<div className="info-strip"><Info size={17}/> Inputs can be changed until calculation.</div>}
+        <div className="source-note"><LockKeyhole size={18}/><div><strong>Source of calculation</strong><span>Rule version, component amounts and exceptions appear in employee details.</span></div></div>
+      </div>
+    </aside></div>
+
+    {selected&&<div className="overlay" onClick={()=>setSelected(null)}><aside className="drawer" onClick={event=>event.stopPropagation()}><div className="drawer-header"><div><small>EMPLOYEE CALCULATION</small><h2>{selected.employeeName}</h2><span>{selected.employeeId} · {selected.branch}, {selected.state}</span></div><button className="icon-button" onClick={()=>setSelected(null)}><X size={20}/></button></div><div className="drawer-body"><div className="net-highlight"><span>Net pay</span><strong>{money(selected.net)}</strong><small>September 2026</small></div><h3>Earnings</h3>{[['Basic pay',selected.basic],['House rent allowance',selected.hra],['Special allowance',selected.special],['Variable pay',selected.variablePay]].map(([label,value])=><div className="detail-row" key={String(label)}><span>{label}</span><strong>{money(Number(value))}</strong></div>)}<div className="detail-row total"><span>Gross pay</span><strong>{money(selected.gross)}</strong></div><h3>Deductions</h3>{[['Provident fund',selected.pfEmployee],['Employee ESI',selected.esiEmployee],['Professional tax',selected.professionalTax],['Labour welfare',selected.labourWelfareFund],['Income tax (TDS)',selected.incomeTax],['Other',selected.otherDeduction]].map(([label,value])=><div className="detail-row" key={String(label)}><span>{label}</span><strong>{money(Number(value))}</strong></div>)}<div className="detail-row total"><span>Total deductions</span><strong>{money(selected.deductions)}</strong></div><div className="calculation-meta"><strong>Calculation trace</strong><span>Rule {selected.ruleVersion}</span><span>Projected annual income tax {money(selected.annualProjectedTax)}</span><span>Employer PF {money(selected.pfEmployer)} · EPS {money(selected.epsEmployer)} · EDLI {money(selected.edliEmployer)}</span></div>{selected.flags.length>0&&<div className="detail-flags"><h3>Exceptions</h3>{selected.flags.map(flag=><div key={flag.code}><Pill tone={flag.severity==='blocking'?'danger':'warning'}>{flag.severity}</Pill> {flag.message}</div>)}</div>}</div></aside></div>}
+    {importOpen&&<ImportDialog role={role} onClose={()=>setImportOpen(false)} onRefresh={onRefresh} setError={setError} setToast={setToast}/>}
+    {approvalOpen&&<div className="overlay modal-overlay" onClick={()=>setApprovalOpen(false)}><div className="modal approval-modal" onClick={event=>event.stopPropagation()}><button className="icon-button modal-close" onClick={()=>setApprovalOpen(false)}><X size={20}/></button><div className="modal-icon"><BadgeCheck size={25}/></div><h2>Approve September payroll</h2><p>Confirm {run?.totalEmployees?.toLocaleString('en-IN') ?? '—'} employees and {money(run?.net ?? 0)} net pay. Your decision is recorded in the audit trail.</p><label>Approval note<textarea value={approvalNote} onChange={event=>setApprovalNote(event.target.value)} placeholder="Optional note for the approval record"/></label><div className="modal-actions"><button className="button outline" onClick={()=>setApprovalOpen(false)}>Cancel</button><button className="button primary" onClick={async()=>{setApprovalOpen(false);await onAction('approve','Payroll approved by Finance.',{note:approvalNote});}}>Confirm approval</button></div></div></div>}
+    {auditOpen&&<div className="overlay" onClick={()=>setAuditOpen(false)}><aside className="drawer" onClick={event=>event.stopPropagation()}><div className="drawer-header"><div><small>PAYROLL GOVERNANCE</small><h2>Audit trail</h2><span>Run RUN-2026-09</span></div><button className="icon-button" onClick={()=>setAuditOpen(false)}><X size={20}/></button></div><div className="drawer-body"><div className="audit-list">{auditEvents.map(event=><div key={event.id}><span className="audit-dot"/><div><strong>{event.action.replaceAll('.',' · ')}</strong><span>{event.actor} · {new Date(event.created_at).toLocaleString('en-IN')}</span><small>{Object.entries(event.details).map(([key,value])=>`${key}: ${String(value)}`).join(' · ')}</small></div></div>)}{!auditEvents.length&&<p>No events recorded yet.</p>}</div></div></aside></div>}
+  </>;
+}
+
+function ImportDialog({role,onClose,onRefresh,setError,setToast}:{role:Role;onClose:()=>void;onRefresh:()=>Promise<void>;setError:(x:string)=>void;setToast:(x:string)=>void}){
+  const sample='employee_id,variable_pay,other_deduction,unpaid_days,working_days,note\nEMP00001,2500,0,0,30,September bonus\nEMP00002,0,0,1,30,One unpaid day';
+  const [contents,setContents]=useState(sample);
+  const [preview,setPreview]=useState<{valid:unknown[];errors:Array<{row:number;message:string}>}|null>(null);
+  const [loading,setLoading]=useState(false);
+  async function check(){setLoading(true);try{setPreview(await api('/runs/RUN-2026-09/import/preview',role,{method:'POST',body:JSON.stringify({csv:contents})}));}catch(err){setError((err as Error).message);}finally{setLoading(false);}}
+  async function commit(){setLoading(true);try{const result=await api<{imported:number}>('/runs/RUN-2026-09/import/commit',role,{method:'POST',body:JSON.stringify({csv:contents})});await onRefresh();setToast(`${result.imported} input rows imported.`);onClose();}catch(err){setError((err as Error).message);}finally{setLoading(false);}}
+  return <div className="overlay modal-overlay" onClick={onClose}><div className="modal import-modal" onClick={event=>event.stopPropagation()}><button className="icon-button modal-close" onClick={onClose}><X size={20}/></button><div className="modal-icon"><FileSpreadsheet size={25}/></div><h2>Import payroll inputs</h2><p>Paste a CSV or choose a file. Preview checks columns, duplicates, employee IDs, amounts and attendance before importing.</p><input className="file-input" type="file" accept=".csv,text/csv" onChange={async event=>{const file=event.target.files?.[0];if(file){setContents(await file.text());setPreview(null);}}}/><label>CSV data<textarea className="csv-textarea" value={contents} onChange={event=>{setContents(event.target.value);setPreview(null);}}/></label>{preview&&<div className={`import-preview ${preview.errors.length?'has-error':''}`}><strong>{preview.valid.length} valid rows · {preview.errors.length} errors</strong>{preview.errors.slice(0,5).map((item,index)=><span key={index}>{item.row?`Row ${item.row}`:'File'}: {item.message}</span>)}</div>}<div className="modal-actions"><button className="button outline" onClick={onClose}>Cancel</button><button className="button outline" disabled={loading} onClick={check}>Preview</button><button className="button primary" disabled={!preview||preview.errors.length>0||loading} onClick={commit}>Import rows</button></div></div></div>;
+}

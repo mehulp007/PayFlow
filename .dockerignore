@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+**/dist
+**/.expo
+data
+individual-demo-credentials.txt
+.local-backups
+.git
+.env
+.env.*
+*.log
+docs/screenshots
