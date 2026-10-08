@@ -18,8 +18,6 @@ const roleLabels:Record<Role,string>={
   admin:'Organization Admin','hr-operator':'HR Operator','payroll-operator':'Payroll Operator',
   'finance-approver':'Finance Approver',auditor:'Auditor',employee:'Employee',
 };
-const publicDemo=import.meta.env.VITE_PUBLIC_DEMO==='1';
-
 export default function App(){
   const [page,setPage]=useState<PageName>('Overview');
   const [session,setSession]=useState<User|null>(null);
@@ -75,13 +73,13 @@ export default function App(){
     try{await api('/auth/logout',role,{method:'POST'});}catch{}finally{setToken(null);setSession(null);setRun(null);setPage('Overview');}
   }
 
-  if(checking)return <div className="auth-loading">Opening Payroll Studio…</div>;
+  if(checking)return <div className="auth-loading">Opening PayFlow…</div>;
   if(!session)return <LoginPage onSignIn={signIn}/>;
   if(session.mustChangePassword)return <FirstPasswordPage username={session.username} onComplete={()=>{setToken(null);setSession(null);}} onSignOut={signOut}/>;
 
   return <div className="app-shell">
     <aside className={`sidebar ${menuOpen?'open':''}`}>
-      <div className="brand"><span className="brand-icon"><Wallet size={22}/></span><div><strong>Payroll Studio</strong><small>DEMO WORKSPACE</small></div></div>
+      <div className="brand"><span className="brand-icon"><Wallet size={22}/></span><div><strong>PayFlow</strong><small>DEMO WORKSPACE</small></div></div>
       <div className="org-switch"><span className="org-mark">AG</span><span><strong>Aster Group</strong><small>One organization · 5 branches</small></span><ChevronDown size={15}/></div>
       <p className="nav-caption">WORKSPACE</p>
       <nav>{(role==='employee'?navigation.filter(item=>item.name==='Overview'):navigation).map(item=><button key={item.name} className={`nav-item ${page===item.name?'active':''}`} onClick={()=>navigate(item.name)}><item.icon size={19}/><span>{role==='employee'?'My payroll':item.name}</span></button>)}</nav>
@@ -116,29 +114,21 @@ function LoginPage({onSignIn}:{onSignIn:(username:string,password:string)=>Promi
   const [password,setPassword]=useState('');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
-  const [demoAccounts,setDemoAccounts]=useState<Array<{username:string;password:string;role:Role}>>([]);
-  useEffect(()=>{if(publicDemo)api<{accounts:typeof demoAccounts}>('/demo/access','employee')
-    .then(result=>setDemoAccounts(result.accounts)).catch(err=>setError(err.message));},[]);
-  async function enterDemo(account:{username:string;password:string}){
-    setBusy(true);setError('');
-    try{await onSignIn(account.username,account.password);}catch(err){setError((err as Error).message);}finally{setBusy(false);}
-  }
   async function submit(event:FormEvent){
     event.preventDefault();setBusy(true);setError('');
     try{await onSignIn(username,password);}catch(err){setError((err as Error).message);}finally{setBusy(false);}
   }
   return <div className="auth-page"><div className="auth-panel">
-    <div className="auth-brand"><span className="brand-icon"><Wallet size={23}/></span><div><strong>Payroll Studio</strong><small>DEMO WORKSPACE</small></div></div>
+    <div className="auth-brand"><span className="brand-icon"><Wallet size={23}/></span><div><strong>PayFlow</strong><small>DEMO WORKSPACE</small></div></div>
     <div className="auth-intro"><span>SECURE WORKSPACE</span><h1>Welcome back</h1><p>Sign in to your payroll workspace. Your account determines which records and actions you can access.</p></div>
     <form onSubmit={submit} className="auth-form"><label>Username<input autoComplete="username" value={username} onChange={event=>setUsername(event.target.value)} required placeholder="Your username"/></label>
       <label>Password<input type="password" autoComplete="current-password" value={password} onChange={event=>setPassword(event.target.value)} required placeholder="Your password"/></label>
       {error&&<div className="auth-error" role="alert">{error}</div>}
       <button type="submit" className="button primary" disabled={busy}>{busy?'Signing in…':'Sign in'} <ArrowRight size={17}/></button></form>
-    <div className="auth-demo"><strong>{publicDemo?'Explore the public demo':'Individual accounts'}</strong>
-      <p>{publicDemo?'Shared fictional records can be reset by HR in Settings. Changes affect every visitor. Do not enter real employee, salary or bank information.':'Each demo role has its own password. Find setup instructions in the project README.'}</p>
-      {publicDemo&&<div className="demo-role-list">{demoAccounts.map(account=><button type="button" className="button outline" disabled={busy} key={account.username} onClick={()=>enterDemo(account)}>{roleLabels[account.role]}</button>)}</div>}
-      <small>{publicDemo?'Public demo · sample data only':'Synthetic data only · local evaluation'}</small></div>
-  </div><aside className="auth-aside"><span>ASTER GROUP · PAYROLL 2026</span><h2>One clear place for people, payroll and compliance.</h2><p>Review pay runs, resolve exceptions, approve results, and give employees access to their own information.</p><div><span>01&nbsp; Role based access</span><span>02&nbsp; Separate finance approval</span><span>03&nbsp; Employee self service</span></div></aside></div>;
+    <div className="auth-demo"><strong>Individual accounts</strong>
+      <p>Each demo role has its own password. Find setup instructions in the project README.</p>
+      <small>Synthetic data only · local evaluation</small></div>
+  </div><aside className="auth-aside"><span>PAYFLOW · INDIA PAYROLL 2026</span><h2>One clear place for people, payroll and compliance.</h2><p>Review pay runs, resolve exceptions, approve results, and give employees access to their own information.</p><div><span>01&nbsp; Role based access</span><span>02&nbsp; Separate finance approval</span><span>03&nbsp; Employee self service</span></div></aside></div>;
 }
 
 function FirstPasswordPage({username,onComplete,onSignOut}:{username:string;onComplete:()=>void;onSignOut:()=>void}){
@@ -154,7 +144,7 @@ function FirstPasswordPage({username,onComplete,onSignOut}:{username:string;onCo
     catch(err){setError((err as Error).message);}finally{setBusy(false);}
   }
   return <div className="auth-page"><div className="auth-panel">
-    <div className="auth-brand"><span className="brand-icon"><Wallet size={23}/></span><div><strong>Payroll Studio</strong><small>DEMO WORKSPACE</small></div></div>
+    <div className="auth-brand"><span className="brand-icon"><Wallet size={23}/></span><div><strong>PayFlow</strong><small>DEMO WORKSPACE</small></div></div>
     <div className="auth-intro"><span>ACCOUNT SETUP</span><h1>Create your password</h1><p>{username}, enter the temporary password given to you, then choose a private password. You will sign in again afterward.</p></div>
     <form onSubmit={submit} className="auth-form"><label>Temporary password<input type="password" autoComplete="current-password" value={currentPassword} onChange={event=>setCurrentPassword(event.target.value)} required/></label>
       <label>New password<input type="password" autoComplete="new-password" minLength={12} value={newPassword} onChange={event=>setNewPassword(event.target.value)} required placeholder="At least 12 characters"/></label>
@@ -162,7 +152,7 @@ function FirstPasswordPage({username,onComplete,onSignOut}:{username:string;onCo
       {error&&<div className="auth-error" role="alert">{error}</div>}
       <button type="submit" className="button primary" disabled={busy}>{busy?'Saving…':'Save password'} <ArrowRight size={17}/></button></form>
     <button type="button" className="signout-button" onClick={onSignOut}>Sign out</button>
-  </div><aside className="auth-aside"><span>ASTER GROUP · ACCOUNT SETUP</span><h2>Your personal payroll access.</h2><p>Only you should know the password you choose.</p></aside></div>;
+  </div><aside className="auth-aside"><span>PAYFLOW · ACCOUNT SETUP</span><h2>Your personal payroll access.</h2><p>Only you should know the password you choose.</p></aside></div>;
 }
 
 function EmployeePortal({status,employeeId}:{status:string;employeeId:string}){

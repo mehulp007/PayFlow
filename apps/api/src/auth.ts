@@ -9,10 +9,6 @@ type Account = Principal & { password_hash: string; active: boolean };
 const roles: Role[] = ['admin','hr-operator','payroll-operator','finance-approver','auditor','employee'];
 const failures = new Map<string,{count:number;until:number}>();
 const demoCredentialPath=resolve(dirname(dataDirectory),'individual-demo-credentials.txt');
-const publicDemoPasswords: Record<string,string> = {
-  hr:'Demo-HR-2026!', payroll:'Demo-Payroll-2026!', finance:'Demo-Finance-2026!',
-  auditor:'Demo-Auditor-2026!', employee:'Demo-Employee-2026!',
-};
 function temporaryPassword():string{return `${randomBytes(18).toString('base64url')}aA1!`;}
 
 function passwordHash(password: string, salt = randomBytes(16).toString('hex')): string {
@@ -51,14 +47,12 @@ export async function initializeAuth(): Promise<void> {
     ['admin','admin',null],['hr','hr-operator',null],['payroll','payroll-operator',null],
     ['finance','finance-approver',null],['auditor','auditor',null],['employee','employee','EMP00001'],
   ];
-  const credentials=seed.map(([username,role,employeeId])=>({username,role,employeeId,
-    password:process.env.PUBLIC_DEMO==='1' && publicDemoPasswords[username]
-      ? publicDemoPasswords[username] : temporaryPassword()}));
-  const note=['ASTER PAYROLL - SYNTHETIC DEMO CREDENTIALS',
+  const credentials=seed.map(([username,role,employeeId])=>({username,role,employeeId,password:temporaryPassword()}));
+  const note=['PAYFLOW - SYNTHETIC DEMO CREDENTIALS',
     'Each built-in account has its own password. Change it after signing in.',
     'Keep this file private. Do not use real payroll data.',
     '',...credentials.map(item=>`${item.username}\t${item.password}\t${item.role}`),''].join('\n');
-  if (process.env.PUBLIC_DEMO !== '1') await writeFile(demoCredentialPath,note,{mode:0o600});
+  await writeFile(demoCredentialPath,note,{mode:0o600});
   await db.transaction(async tx=>{
     for(const item of credentials){
       if(Number(existing.rows[0]?.count??0)===0){
@@ -72,20 +66,6 @@ export async function initializeAuth(): Promise<void> {
     await tx.query('DELETE FROM auth_sessions WHERE user_id=ANY($1::text[])',[credentials.map(item=>`USR-${item.username}`)]);
     await tx.query('INSERT INTO auth_migrations(name) VALUES($1)',['individual-demo-credentials-v1']);
   });
-}
-
-/** Shared access to fictional records, enabled only on the public demo deployment. */
-export async function publicDemoAccounts(): Promise<Array<{username:string;password:string;role:Role}>> {
-  if(process.env.PUBLIC_DEMO!=='1' || process.env.NODE_ENV==='production')
-    throw Object.assign(new Error('Public demo access is disabled'),{statusCode:404});
-  const accounts: Array<{username:string;role:Role}> = [
-    {username:'hr',role:'hr-operator'},
-    {username:'payroll',role:'payroll-operator'},
-    {username:'finance',role:'finance-approver'},
-    {username:'auditor',role:'auditor'},
-    {username:'employee',role:'employee'},
-  ];
-  return accounts.map(item=>({...item,password:publicDemoPasswords[item.username]}));
 }
 
 export async function login(usernameInput: unknown, passwordInput: unknown, source: string): Promise<{token:string;user:Principal}> {
@@ -171,8 +151,6 @@ export async function resetUserPassword(id:string):Promise<string>{
   return password;
 }
 export async function changePassword(userId:string,currentInput:unknown,nextInput:unknown):Promise<void>{
-  if(process.env.PUBLIC_DEMO==='1' && /^USR-(?:admin|hr|payroll|finance|auditor|employee)$/.test(userId))
-    throw Object.assign(new Error('Shared demo accounts cannot change passwords'),{statusCode:403});
   const current=String(currentInput??'');
   const next=String(nextInput??'');
   if(next.length<12||next.length>256||next===current)

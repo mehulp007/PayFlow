@@ -1,10 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { parse } from 'csv-parse/sync';
-import { calculatePayroll, type EmployeePayrollProfile, type PayrollInput, type PayrollLine } from '@payroll/core';
+import { calculatePayroll, type EmployeePayrollProfile, type PayrollInput, type PayrollLine } from '@payflow/core';
 import { db, demoSeedLastEmployeeId, initializeDatabase } from './db.js';
-import { changePassword, createUser, initializeAuth, listUsers, login, logout, publicDemoAccounts, removeDemoUser, resetUserPassword, sessionUser, type Principal, type Role as Actor } from './auth.js';
-import { registerPreviewWeb } from './preview-web.js';
+import { changePassword, createUser, initializeAuth, listUsers, login, logout, removeDemoUser, resetUserPassword, sessionUser, type Principal, type Role as Actor } from './auth.js';
 import type { FastifyRequest } from 'fastify';
 
 if (process.env.NODE_ENV === 'production') {
@@ -41,7 +40,7 @@ declare module 'fastify' {
 }
 app.addHook('preHandler',async request=>{
   if (!request.url.startsWith('/api/')) return;
-  if (request.url.startsWith('/api/health') || request.url.startsWith('/api/auth/login') || request.url==='/api/demo/access') return;
+  if (request.url.startsWith('/api/health') || request.url.startsWith('/api/auth/login')) return;
   const header=request.headers.authorization??'';
   const token=header.startsWith('Bearer ')?header.slice(7):'';
   const principal=await sessionUser(token);
@@ -132,10 +131,6 @@ function csvCell(value: unknown): string {
 function csv(rows: unknown[][]): string { return rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n'; }
 
 app.get('/api/health', async () => ({ ok: true, mode: 'demo', ruleVersion: 'IN-TY2026-27-v1' }));
-app.get('/api/demo/access',async (_request,reply)=>{
-  reply.header('cache-control','no-store');
-  return {accounts:await publicDemoAccounts()};
-});
 app.post('/api/auth/login',async request=>{
   const body=(request.body??{}) as {username?:string;password?:string};
   const result=await login(body.username,body.password,request.ip);
@@ -178,7 +173,7 @@ app.delete('/api/auth/users/:id',async request=>{
   return {ok:true};
 });
 app.post('/api/demo/reset', async request => {
-  mustBe(request,process.env.PUBLIC_DEMO==='1'?['admin','hr-operator']:['admin']);
+  mustBe(request,['admin']);
   await db.transaction(async tx => {
     await tx.query('DELETE FROM payroll_lines WHERE run_id=$1',['RUN-2026-09']);
     await tx.query('DELETE FROM auth_sessions WHERE user_id IN (SELECT id FROM app_users WHERE employee_id > $1)',[demoSeedLastEmployeeId]);
@@ -590,6 +585,5 @@ app.setErrorHandler((error,request,reply) => {
   reply.code(detail.statusCode ?? 500).send({error:detail.message});
 });
 
-if(process.env.SERVE_WEB==='1')await registerPreviewWeb(app);
 const port=Number(process.env.PORT ?? 4000);
 await app.listen({port,host:process.env.HOST ?? '127.0.0.1'});

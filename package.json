@@ -1,19 +1,23 @@
 {
-  "name": "bharat-payroll",
+  "name": "payflow",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "concurrently -n API,WEB -c blue,green \"npm run dev -w @payroll/api\" \"npm run dev -w @payroll/web\"",
-    "dev:api": "npm run dev -w @payroll/api",
-    "dev:web": "npm run dev -w @payroll/web",
-    "dev:mobile": "npm run start -w @payroll/mobile",
-    "preview:local": "node scripts/preview-local.mjs",
-    "build": "npm run build -w @payroll/core && npm run build -w @payroll/api && npm run build -w @payroll/web",
-    "test": "npm run test -w @payroll/core",
+    "predev": "npm run build -w @payflow/core",
+    "dev": "concurrently -n API,WEB -c blue,green \"npm run dev -w @payflow/api\" \"npm run dev -w @payflow/web\"",
+    "dev:api": "npm run dev -w @payflow/api",
+    "dev:web": "npm run dev -w @payflow/web",
+    "build": "npm run build -w @payflow/core && npm run build -w @payflow/api && npm run build -w @payflow/web",
+    "pretest": "npm run build -w @payflow/core",
+    "test": "npm run test -w @payflow/core",
     "smoke": "node scripts/smoke.mjs",
-    "typecheck": "npm run typecheck -w @payroll/core && npm run typecheck -w @payroll/api && npm run typecheck -w @payroll/web && npm run typecheck -w @payroll/mobile"
+    "pretypecheck": "npm run build -w @payflow/core",
+    "typecheck": "npm run typecheck -w @payflow/core && npm run typecheck -w @payflow/api && npm run typecheck -w @payflow/web"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

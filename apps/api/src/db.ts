@@ -5,10 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const dataDirectory = resolve(process.env.PAYROLL_DATA_DIRECTORY ??
+export const dataDirectory = resolve(process.env.PAYFLOW_DATA_DIRECTORY ??
   resolve(dirname(fileURLToPath(import.meta.url)), '../../..', 'data', 'payroll-pg'));
-// Render Free has a 512 MiB memory limit; keep its shared showcase small.
-export const demoSeedEmployeeCount = process.env.PUBLIC_DEMO === '1' ? 240 : 8420;
+export const demoSeedEmployeeCount = 8420;
 export const demoSeedLastEmployeeId = `EMP${String(demoSeedEmployeeCount).padStart(5, '0')}`;
 type Queryable = { query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }> };
 type Database = Queryable & {
@@ -94,9 +93,6 @@ async function acquireDataLock():Promise<void>{
     }
   }
   throw new Error('Unable to acquire the local payroll database lock');
-}
-if (process.env.PUBLIC_DEMO === '1' && !process.env.DATABASE_URL) {
-  throw new Error('Public showcase requires DATABASE_URL; wait for Render PostgreSQL to become ready.');
 }
 export const db: Database = process.env.DATABASE_URL
   ? postgresDatabase(process.env.DATABASE_URL)
