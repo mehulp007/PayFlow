@@ -4,7 +4,7 @@ PayFlow is a portfolio project. It runs on **synthetic data only** and must not 
 produce statutory filings, or store real employee, salary, tax or bank details.
 
 The calculation rules were **reviewed in October 2026** against the regulations below. Rule version:
-`IN-TY2026-27-v2+IN-STATES-2026-10` (shown on every payroll line). Rules change by notification, so verify
+`IN-TY2026-27-v3+IN-STATES-2026-10` (shown on every payroll line). Rules change by notification, so verify
 against the official portals before relying on any figure.
 
 ## What the rule pack implements
@@ -20,6 +20,27 @@ against the official portals before relying on any figure.
 | Surcharge and cess   | 10% / 15% / 25% / 37% (new regime capped at 25%) with marginal relief; 4% health and education cess                                                                                                                                                                                                                                                                                                                              |
 | Monthly TDS (s. 392) | Annual tax is projected from salary actually paid earlier in the tax year (from approved runs), this month's actual pay and regular pay for the remaining months. TDS already deducted in those runs is subtracted and the balance is spread over the remaining months, so earlier under- or over-deduction is corrected going forward. Months before joining are not counted, and this month's loss of pay is not extrapolated. |
 | Returns              | Quarterly salary TDS statement is **Form 138** (replaces 24Q); the annual certificate is **Form 130** (replaces Form 16)                                                                                                                                                                                                                                                                                                         |
+
+### Old-regime declarations: Form 124 and the Income-tax Rules, 2026
+
+Employees declare rent and savings to the employer on **Form 124** (it replaced Form 12BB from tax year 2026-27;
+s. 392(5)(b) with rule 205). PayFlow uses the declaration for TDS only under the old regime, and HR marks it
+verified once proofs are checked. Changing a declaration sends it back for verification.
+
+| Deduction                | Rule applied                                                                                                                                                                                                            |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| House rent allowance     | Least of HRA received, 50% of basic (40% outside the eight cities) and rent above 10% of basic. **Rule 279** adds Bengaluru, Hyderabad, Pune and Ahmedabad to the 50% list alongside Delhi, Mumbai, Kolkata and Chennai |
+| Landlord PAN             | Required when rent is above ₹1,00,000 a year; the relationship with the landlord is asked for, as on Form 124                                                                                                           |
+| Savings, s. 123 (ex-80C) | Schedule XV savings plus the employee's own PF, up to ₹1,50,000                                                                                                                                                         |
+| Additional NPS, s. 124   | Up to ₹50,000 beyond s. 123                                                                                                                                                                                             |
+| Health insurance, s. 126 | Self and family ₹25,000 (₹50,000 from age 60); parents ₹25,000 (₹50,000 if a parent is 60 or older)                                                                                                                     |
+| Home loan interest       | Self-occupied home, up to ₹2,00,000                                                                                                                                                                                     |
+| Professional tax         | Tax on employment actually deducted, up to ₹2,500 a year (Article 276)                                                                                                                                                  |
+| New regime (s. 202)      | None of the above; only the ₹75,000 standard deduction                                                                                                                                                                  |
+
+The regime calculator projects the year under both regimes with the same method as monthly TDS (salary paid so far,
+then the regular salary to March) and recommends the cheaper one; the new regime is kept when they are equal.
+Employees choose their regime while the month's run is a draft.
 
 ### Wages: Code on Wages, 2019 and Code on Social Security, 2020 (in force from 21 November 2025)
 
@@ -76,6 +97,25 @@ applied.
 | Salary revisions      | Effective-dated, starting on the first of a month after the last approved period. Approved runs are never recalculated.                                                                              |
 | Reviewed tax year     | Periods outside tax year 2026–27 carry a warning that rates must be verified for that year.                                                                                                          |
 
+### Wage slips: Code on Wages, 2019, s. 50(3)
+
+Employers must give a wage slip, electronic or on paper, on or before paying wages. PayFlow makes payslips
+available to employees as soon as Finance approves a run (always before the payment date), notifies employees with
+an account, and offers each one as a PDF with earnings, deductions, employer contributions, statutory wages, days
+paid and loss-of-pay days. Built-in PDF fonts have no rupee sign, so amounts are labelled INR.
+
+### Leave: OSH Code, 2020, s. 32 (in force from 21 November 2025)
+
+| Item                  | Rule applied                                                                                                                         |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Earned leave          | One day for every 20 days worked in the previous calendar year, for workers who worked 180 days or more in that year                 |
+| Days worked           | Working days employed last year (Monday to Saturday); Sunday is the weekly rest day and is not counted in leave requests             |
+| Carry forward         | Up to 30 days, recorded by HR per person and year                                                                                    |
+| Sick and casual leave | 12 days a year, pro-rated by month for joiners. This is set by state shops and establishments rules, which differ                    |
+| Leave without pay     | Approved days are added to the month's unpaid days and deducted as loss of pay; a calculated run goes back to draft when they change |
+| Approved months       | Leave cannot be requested or approved for a month whose run is with Finance or approved                                              |
+| Decisions             | HR decides any request; a manager with a PayFlow sign-in decides their direct reports'; nobody decides their own                     |
+
 ## Known limitations
 
 - Tamil Nadu PT uses six times the current month's gross as the half-yearly income, and slabs vary by local
@@ -87,10 +127,20 @@ applied.
   months are not modelled.
 - Final settlement within two working days is flagged, not computed: leave encashment, notice pay and gratuity on
   exit are outside the monthly run.
-- Not yet modelled: HRA exemption and old-regime declarations in detail, perquisites, employer PF above ₹7.5L,
-  gratuity accrual, minimum-wage checks, and the ESI disability ceiling (₹25,000).
+- The HRA exemption assumes rent for every month employed in the tax year; changes of address mid-year are not
+  split. Declared amounts are taken at face value until HR verifies proofs.
+- Leave encashment (including the s. 32 option to encash leave beyond the carry-forward limit), half days,
+  holidays and state-specific leave rules are not modelled. Earned leave accrual uses days employed, not
+  attendance records.
+- Not yet modelled: perquisites, employer PF above ₹7.5L, gratuity accrual, minimum-wage checks, and the ESI
+  disability ceiling (₹25,000).
 
 ## Sources
+
+- [Form 124 replaces Form 12BB](https://taxguru.in/income-tax/income-tax-form-124-employee-statement-salary-declaration-tds-deduction.html) · [Section 123 (formerly 80C)](https://www.taxtmi.com/tmi_notes?id=1581) · [Old and new section mapping](https://taxgarden.in/blog/income-tax-act-2025-section-mapping-old-vs-new-india)
+- [HRA 50% limit for eight cities under rule 279](https://taxguru.in/income-tax/hra-exemption-8-cities-qualify-50-percent-exemption-practical-guide.html) · [Income-tax Rules 2026 notified](https://www.caalley.com/news-updates/indian-news/new-tax-rules-notified-from-hra-to-company-car-to-meal-card-top-5-prominent-changes-which-will-impact-salaried-taxpayers)
+- [Annual leave under the OSH Code](https://simpliance.in/blog/?p=915) · [Carry forward and encashment](https://www.outlookmoney.com/news/new-labour-codes-change-heres-how-you-earn-carry-and-encash-leave) · [OSH Central Rules 2026](https://trilegal.com/knowledge-repository/trilegal-update-labour-codes-move-closer-to-full-implementation-takeaways-from-the-newly-notified-central-rules/)
+- [Wage slips under the Code on Wages](https://lexplosion.in/code-on-wages-2019-compliance-related-changes-state-rules-are-at-different-stages-of-finalisation/)
 
 - [Code on Wages, 2019, s. 17: time limit for payment of wages](https://www.advocatekhoj.com/library/bareacts/codeonwages/17.php) · [Two-working-day final settlement](https://www.livelaw.in/articles/two-working-days-code-wages-employee-final-settlement-552780)
 - [TDS on salary at the average rate under section 392](https://www.taxheal.com/tds-on-salary-under-section-392-of-income-tax-act.html)

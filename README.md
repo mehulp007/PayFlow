@@ -4,9 +4,10 @@
 
 PayFlow is a multi-tenant payroll application for Indian companies. Anyone can sign up and create an organization —
 empty, or pre-filled with a generated sample company — and run the whole monthly cycle: employee records and
-hierarchy, salary revisions, pay periods, CSV input import, calculation (income tax, EPF, ESI and state deductions),
-exception review, maker-checker approval, payment, period close, payslips, statutory preparation reports and an
-audit trail. Employees get a self-service portal for their own record, tax-regime choice and payslips.
+hierarchy, salary revisions, leave, pay periods, CSV input import, calculation (income tax, EPF, ESI and state
+deductions), exception review, maker-checker approval, payment, period close, PDF payslips, statutory preparation
+reports, analytics and an audit log. Employees get a self-service portal for their payslips, an old-versus-new
+regime tax calculator with their Form 124 declaration, and leave requests that their manager or HR approves.
 
 > **Synthetic data only.** PayFlow is a portfolio project. Its rules were reviewed against Indian regulations in
 > October 2026, but it is not a certified payroll product and its exports are not government or bank upload
@@ -18,14 +19,14 @@ audit trail. Employees get a self-service portal for their own record, tax-regim
 
 PayFlow is being rebuilt from its first prototype in phases. Each phase is committed and pushed when complete.
 
-| Phase                      | Scope                                                                                                                                                                  | Status  |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| 0 · Baseline & cleanup     | Rebrand to PayFlow, remove hosting/mobile code, run locally with zero setup                                                                                            | ✅ Done |
-| Compliance review          | Rules updated to October 2026 regulations: Labour Codes wage definition, EPF ₹25,000 ceiling with the September split, ESI period rules, state PT/LWF                  | ✅ Done |
-| 1 · Engineering foundation | Shared Zod schemas, Drizzle migrations, modular Fastify API, React Router + TanStack Query, readable components and CSS, unit/integration/end-to-end tests, ESLint, CI | ✅ Done |
-| 2 · Multi-tenant sandbox   | Sign-up and onboarding, sample companies with history, tenant isolation, invitations, pay periods with send-back/pay/close, salary revisions, exits, year-to-date TDS  | ✅ Done |
-| 3 · Features               | Payslip PDFs and history, tax-regime calculator, analytics dashboard, leave & attendance, notifications, Ctrl-K palette, dark mode, audit log page                     | ⏳ Next |
-| 4 · Docs polish            | Architecture walkthrough and final screenshots                                                                                                                         | Planned |
+| Phase                      | Scope                                                                                                                                                                     | Status  |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| 0 · Baseline & cleanup     | Rebrand to PayFlow, remove hosting/mobile code, run locally with zero setup                                                                                               | ✅ Done |
+| Compliance review          | Rules updated to October 2026 regulations: Labour Codes wage definition, EPF ₹25,000 ceiling with the September split, ESI period rules, state PT/LWF                     | ✅ Done |
+| 1 · Engineering foundation | Shared Zod schemas, Drizzle migrations, modular Fastify API, React Router + TanStack Query, readable components and CSS, unit/integration/end-to-end tests, ESLint, CI    | ✅ Done |
+| 2 · Multi-tenant sandbox   | Sign-up and onboarding, sample companies with history, tenant isolation, invitations, pay periods with send-back/pay/close, salary revisions, exits, year-to-date TDS     | ✅ Done |
+| 3 · Features               | PDF payslips and history, regime calculator with Form 124 declarations, analytics, OSH Code leave, notifications, Ctrl-K palette, dark mode, audit log, multi-org sign-in | ✅ Done |
+| 4 · Docs polish            | Architecture walkthrough and final screenshots                                                                                                                            | ⏳ Next |
 
 ## Quick start
 
@@ -69,9 +70,13 @@ To start over, stop the app and delete the `data/` folder.
 5. Open **New pay run** for November: the payment date must be before the 7th of the next month, and November's tax
    projection uses October's approved pay.
 6. In **People** or **Compensation**, open a person to edit their record, add a salary revision effective from a
-   future month, or record an exit (the exit month is pro-rated and flagged for two-day final settlement).
-7. Sign in as `employee` to see only your own record, choose a tax regime (while the run is a draft) and view your
-   latest approved payslip.
+   future month, check their tax declaration and leave, or record an exit (the exit month is pro-rated and flagged
+   for two-day final settlement).
+7. Sign in as `employee`: compare the two tax regimes and declare rent and savings under **Tax & declarations**,
+   request leave without pay under **Leave**, and download payslips as PDF.
+8. Back as `hr`, the bell shows the request. Approve it on **Leave**, recalculate October, and the employee's line
+   shows the unpaid days. Press **Ctrl K** anywhere to jump to a person, a pay run or a page, and use the moon
+   icon for dark mode.
 
 ## Features
 
@@ -89,9 +94,22 @@ To start over, stop the app and delete the `data/` folder.
   days. Monthly TDS uses actual year-to-date salary and tax from approved runs.
 - **People**: directory, hierarchy explorer, editable records, effective-dated salary revisions, exits with
   reassignment checks.
-- **Calculation engine** (rule version `IN-TY2026-27-v2`, reviewed October 2026):
+- **Tax declarations and regimes**: employees declare rent, s. 123 savings, NPS, health insurance and home-loan
+  interest on a Form 124-style form, HR verifies it, and a calculator compares the year under both regimes with
+  the same projection that monthly TDS uses.
+- **Leave**: earned leave under the OSH Code (one day per 20 days worked last year, after 180 days, with up to 30
+  days carried forward), sick and casual leave, and leave without pay. Requests go to the person's manager or HR;
+  approved unpaid leave becomes loss of pay in that month's run.
+- **Payslips**: a wage slip for every approved month, viewable in the portal or downloadable as a PDF with
+  earnings, deductions, employer contributions and statutory wages.
+- **Analytics**: monthly cost trend, cost by department, statutory contributions, headcount by level and type, and
+  the biggest month-over-month pay changes. Lines whose gross pay moves more than 25% are flagged for review.
+- **Workspace**: a notification bell (approval requests, send-backs, payslips, leave decisions), a Ctrl K
+  command palette with server-side search, an audit log with filters, dark mode, and one sign-in for several
+  organizations with a switcher.
+- **Calculation engine** (rule version `IN-TY2026-27-v3`, reviewed October 2026):
   - Income-tax Act, 2025: both regimes, the ₹60,000 rebate with marginal relief, surcharge and cess, monthly TDS
-    under s. 392.
+    under s. 392, and old-regime deductions from Form 124 including the 50% HRA limit for eight cities (rule 279).
   - Labour Codes "wages" with the 50% exclusion cap; Code on Wages payment deadline and exit settlement reminder.
   - EPF/EPS/EDLI: the ₹25,000 ceiling from 17 September 2026 with the EPFO day-split for September, EPS exit at 58,
     and admin charges.
@@ -101,26 +119,32 @@ To start over, stop the app and delete the `data/` folder.
 
 ## Interface
 
-| Sign-up                                                      | Pay runs                                                 |
-| ------------------------------------------------------------ | -------------------------------------------------------- |
-| ![Sign-up](docs/screenshots/signup.png)                      | ![Pay runs](docs/screenshots/pay-runs.png)               |
-| **Calculation trace**                                        | **Salary history**                                       |
-| ![Calculation trace](docs/screenshots/calculation-trace.png) | ![Salary history](docs/screenshots/salary-history.png)   |
-| **State rules**                                              | **Employee portal**                                      |
-| ![State rules](docs/screenshots/compliance.png)              | ![Employee portal](docs/screenshots/employee-portal.png) |
+| Analytics                                                    | Analytics in dark mode                                         |
+| ------------------------------------------------------------ | -------------------------------------------------------------- |
+| ![Analytics](docs/screenshots/analytics.png)                 | ![Analytics, dark](docs/screenshots/analytics-dark.png)        |
+| **Payroll review**                                           | **Regime calculator and Form 124**                             |
+| ![Payroll review](docs/screenshots/payroll-review.png)       | ![Tax and declarations](docs/screenshots/tax-declarations.png) |
+| **Leave approvals**                                          | **Command palette**                                            |
+| ![Leave](docs/screenshots/leave.png)                         | ![Command palette](docs/screenshots/command-palette.png)       |
+| **Calculation trace**                                        | **Payslips**                                                   |
+| ![Calculation trace](docs/screenshots/calculation-trace.png) | ![Payslips](docs/screenshots/payslips.png)                     |
 
-More: [sign-in](docs/screenshots/login.png) · [overview](docs/screenshots/hr-overview.png) ·
-[hierarchy](docs/screenshots/hierarchy.png) · [settings](docs/screenshots/settings.png)
+More: [sign-in](docs/screenshots/login.png) · [sign-up](docs/screenshots/signup.png) ·
+[overview](docs/screenshots/hr-overview.png) · [pay runs](docs/screenshots/pay-runs.png) ·
+[payroll in dark mode](docs/screenshots/payroll-dark.png) · [audit log](docs/screenshots/audit-log.png) ·
+[salary history](docs/screenshots/salary-history.png) · [hierarchy](docs/screenshots/hierarchy.png) ·
+[state rules](docs/screenshots/compliance.png) · [employee portal](docs/screenshots/employee-portal.png) ·
+[settings](docs/screenshots/settings.png)
 
 ## Architecture
 
 ```mermaid
 flowchart LR
   subgraph Browser
-    Web["apps/web<br/>React 19 · React Router · TanStack Query"]
+    Web["apps/web<br/>React 19 · React Router · TanStack Query<br/>Recharts · cmdk"]
   end
   subgraph Node["Node.js 24"]
-    API["apps/api<br/>Fastify 5 · Zod validation<br/>organization-scoped modules"]
+    API["apps/api<br/>Fastify 5 · Zod validation<br/>organization-scoped modules · pdfkit"]
     Core["packages/core<br/>payroll and tax rules"]
     DB["Drizzle ORM + migrations"]
   end
@@ -134,16 +158,17 @@ flowchart LR
   Shared -.-> API
 ```
 
-| Workspace         | Responsibility                                                                                                                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`   | Pure calculation library in integer paise: income tax, Labour Codes wages, EPF/EPS/EDLI, ESI, state PT/LWF. No I/O.                                                                                |
-| `packages/shared` | One source of truth used by both apps: roles and the permission matrix, Zod request schemas and response types.                                                                                    |
-| `apps/api`        | Fastify app built by `buildApp()`. Modules for `organizations` (sign-up, sample companies, view-as), `auth` (sessions, invitations), `employees` and `runs`; every service takes the organization. |
-| `apps/web`        | React app with real URLs (`/overview`, `/payroll/:runId`, `/signup`, `/invite`, `/me`, …), a TanStack Query data layer, shared UI components and design tokens in CSS split by area.               |
+| Workspace         | Responsibility                                                                                                                                                                                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`   | Pure calculation library in integer paise: income tax, Labour Codes wages, EPF/EPS/EDLI, ESI, state PT/LWF. No I/O.                                                                                                                                                                     |
+| `packages/shared` | One source of truth used by both apps: roles and the permission matrix, Zod request schemas and response types.                                                                                                                                                                         |
+| `apps/api`        | Fastify app built by `buildApp()`. Modules for `organizations`, `auth` (identities, memberships, sessions, invitations), `employees`, `runs` (with PDF payslips), `leave`, `tax`, `analytics` and `workspace` (notifications, search, audit log); every service takes the organization. |
+| `apps/web`        | React app with real URLs (`/overview`, `/payroll/:runId`, `/analytics`, `/leave`, `/audit`, `/me/tax`, …), a TanStack Query data layer, shared UI components, and light and dark design tokens in CSS split by area. Charts load only on pages that show them.                          |
 
-**Tenancy.** Each request's session resolves to one account in one organization. Services receive that
-organization's ID and filter every query by it, and employee codes (`EMP00001`) are unique only within an
-organization. Isolation is covered by integration tests that try to read and act on another organization's runs,
+**Tenancy.** A person signs in with one identity, which can have memberships in several organizations, each with
+its own role. Each session belongs to one membership, so every request resolves to one organization; services
+receive that organization's ID and filter every query by it, and employee codes (`EMP00001`) are unique only
+within an organization. An admin can reset a password only for people who belong to that organization alone. Isolation is covered by integration tests that try to read and act on another organization's runs,
 people, accounts and exports.
 
 **Database.** The schema lives in [`apps/api/src/db/schema.ts`](apps/api/src/db/schema.ts). SQL migrations are
@@ -153,18 +178,20 @@ PostgreSQL server instead.
 
 ## Testing
 
-| Command             | What it checks                                                                                                                                                 |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test`          | 32 statutory rule cases in the calculation library, and 34 API integration tests against an in-memory database                                                 |
-| `npm run e2e`       | Two Playwright journeys in a real browser: a run prepared, sent back, approved, paid and closed across roles; sign-up with a sample company and role switching |
-| `npm run typecheck` | TypeScript across all four workspaces                                                                                                                          |
-| `npm run lint`      | ESLint (TypeScript and React hooks rules)                                                                                                                      |
-| `npm run format`    | Prettier                                                                                                                                                       |
+| Command             | What it checks                                                                                                                                                                                                                                                         |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm test`          | 43 statutory rule cases in the calculation library, and 50 API integration tests against an in-memory database                                                                                                                                                         |
+| `npm run e2e`       | Four Playwright journeys in a real browser: a run prepared, sent back, approved, paid and closed; sign-up with a sample company, role switching and PDF payslips; unpaid leave from request to the pay run with notifications, Ctrl K and dark mode; audit log filters |
+| `npm run typecheck` | TypeScript across all four workspaces                                                                                                                                                                                                                                  |
+| `npm run lint`      | ESLint (TypeScript and React hooks rules)                                                                                                                                                                                                                              |
+| `npm run format`    | Prettier                                                                                                                                                                                                                                                               |
 
 The API tests boot the real app with `buildApp()` on PGlite in memory. They cover sign-up validation, sample
 history and year-to-date tax, empty organizations, tenant isolation, invitations, view-as and resets, sessions and
 lockout, role permissions, employee self-service limits, salary revisions, exits and proration, imports, the
-exception gate, send-back, maker-checker, payment, close, payment deadlines and exports. Locally, `npm run e2e` uses
+exception gate, send-back, maker-checker, payment, close, payment deadlines, exports, PDF payslips, leave balances
+and approvals, declarations and the regime calculator, notifications, search, the audit log, analytics, and
+switching between organizations. Locally, `npm run e2e` uses
 Microsoft Edge; CI installs Chromium. GitHub Actions runs every check on each push.
 
 ## Scripts
