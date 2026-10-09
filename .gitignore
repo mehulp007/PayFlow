@@ -29,3 +29,5 @@ individual-demo-credentials.txt
 .local-backups/
 coverage/
 *.log
+playwright-report/
+test-results/

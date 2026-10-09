@@ -8,20 +8,31 @@
     "packages/*"
   ],
   "scripts": {
-    "predev": "npm run build -w @payflow/core",
+    "predev": "npm run build:libs",
     "dev": "concurrently -n API,WEB -c blue,green \"npm run dev -w @payflow/api\" \"npm run dev -w @payflow/web\"",
     "dev:api": "npm run dev -w @payflow/api",
     "dev:web": "npm run dev -w @payflow/web",
-    "build": "npm run build -w @payflow/core && npm run build -w @payflow/api && npm run build -w @payflow/web",
-    "pretest": "npm run build -w @payflow/core",
-    "test": "npm run test -w @payflow/core",
-    "smoke": "node scripts/smoke.mjs",
-    "pretypecheck": "npm run build -w @payflow/core",
-    "typecheck": "npm run typecheck -w @payflow/core && npm run typecheck -w @payflow/api && npm run typecheck -w @payflow/web"
+    "build:libs": "npm run build -w @payflow/core && npm run build -w @payflow/shared",
+    "build": "npm run build:libs && npm run build -w @payflow/api && npm run build -w @payflow/web",
+    "pretypecheck": "npm run build:libs",
+    "typecheck": "npm run typecheck -w @payflow/core -w @payflow/shared -w @payflow/api -w @payflow/web",
+    "pretest": "npm run build:libs",
+    "test": "npm run test -w @payflow/core -w @payflow/api",
+    "e2e": "npm run build:libs && playwright test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@playwright/test": "^1.64.0",
     "@types/node": "^24.0.0",
     "concurrently": "^9.2.1",
-    "typescript": "^5.9.2"
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.71.1"
   }
 }
