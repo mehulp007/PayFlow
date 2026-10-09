@@ -1,14 +1,16 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { approveRun } from '../src/modules/runs/service.js';
-import { DEMO_RUN_ID } from '../src/db/seed.js';
-import { createTestContext, employeeId, RUN, SEED_SIZE, type TestContext } from './helpers.js';
+import { createTestContext, newJoiners, SEED_SIZE, type TestContext } from './helpers.js';
 
 let ctx: TestContext;
+let run: string;
 const tokens: Record<string, string> = {};
 beforeAll(async () => {
   ctx = await createTestContext();
-  for (const username of ['admin', 'hr', 'payroll', 'finance', 'auditor', 'employee'])
+  for (const username of ['admin', 'hr', 'payroll', 'finance', 'auditor', 'employee']) {
     tokens[username] = await ctx.login(username);
+  }
+  run = `/api/runs/${await ctx.currentRunId(tokens.hr)}`;
 });
 afterAll(async () => {
   await ctx.close();
@@ -19,149 +21,155 @@ const csv = (rows: string) => ({
 });
 
 describe('payroll run lifecycle', () => {
-  test('employees see only the period and status, never totals', async () => {
+  test('the open run is October 2026; employees see only its period and status', async () => {
     const bootstrap = await ctx.call(tokens.employee, 'GET', '/api/bootstrap');
-    expect(bootstrap.body.currentRun).toEqual({
-      id: DEMO_RUN_ID,
+    expect(bootstrap.body.currentRun).toMatchObject({
       year: 2026,
-      month: 9,
-      paymentDate: '2026-09-30',
+      month: 10,
       status: 'draft',
+      payGroupName: 'All pay groups',
     });
-    expect((await ctx.call(tokens.employee, 'GET', `${RUN}/lines`)).status).toBe(403);
-    expect((await ctx.call(tokens.employee, 'GET', `${RUN}/exceptions`)).status).toBe(403);
+    expect(bootstrap.body.currentRun.net).toBeUndefined();
+    expect((await ctx.call(tokens.employee, 'GET', `${run}/lines`)).status).toBe(403);
+    expect((await ctx.call(tokens.employee, 'GET', '/api/runs')).status).toBe(403);
   });
 
   test('imports are previewed, validated and committed', async () => {
-    const duplicate = await ctx.call(
-      tokens.payroll,
-      'POST',
-      `${RUN}/import/preview`,
-      csv('EMP00001,100,0,0,30,\nEMP00001,100,0,0,30,'),
+    const preview = (body: object) => ctx.call(tokens.payroll, 'POST', `${run}/import/preview`, body);
+    expect((await preview(csv('EMP00001,100,0,0,31,\nEMP00001,100,0,0,31,'))).body.errors[0].message).toBe(
+      'Duplicate employee ID',
     );
-    expect(duplicate.body.errors[0].message).toBe('Duplicate employee ID');
-    const unknown = await ctx.call(tokens.payroll, 'POST', `${RUN}/import/preview`, csv('EMP99999,100,0,0,30,'));
-    expect(unknown.body.errors[0].message).toBe('Unknown employee: EMP99999');
-    const contractor = await ctx.call(tokens.payroll, 'POST', `${RUN}/import/preview`, csv('EMP00017,100,0,0,30,'));
-    expect(contractor.body.errors[0].message).toBe('Contractor EMP00017 accepts attendance only');
-    const badColumns = await ctx.call(tokens.payroll, 'POST', `${RUN}/import/preview`, {
-      csv: 'employee_id\nEMP00001',
-    });
-    expect(badColumns.body.errors[0].message).toMatch(/^Required columns/);
-    expect((await ctx.call(tokens.auditor, 'POST', `${RUN}/import/preview`, csv('EMP00001,0,0,0,30,'))).status).toBe(
+    expect((await preview(csv('EMP99999,100,0,0,31,'))).body.errors[0].message).toBe('Unknown employee: EMP99999');
+    expect((await preview(csv('EMP00017,100,0,0,31,'))).body.errors[0].message).toBe(
+      'Contractor EMP00017 accepts attendance only',
+    );
+    expect((await preview({ csv: 'employee_id\nEMP00001' })).body.errors[0].message).toMatch(/^Required columns/);
+    expect((await ctx.call(tokens.auditor, 'POST', `${run}/import/preview`, csv('EMP00001,0,0,0,31,'))).status).toBe(
       403,
     );
-
     const committed = await ctx.call(
       tokens.payroll,
       'POST',
-      `${RUN}/import/commit`,
-      csv('EMP00001,2500,0,1,30,Bonus\nEMP00017,0,0,2,30,'),
+      `${run}/import/commit`,
+      csv('EMP00001,2500,0,1,31,Bonus\nEMP00017,0,0,2,31,'),
     );
     expect(committed.body).toEqual({ ok: true, imported: 2 });
     expect((await ctx.call(tokens.hr, 'GET', '/api/employees/EMP00017')).body.unpaidDays).toBe(2);
   });
 
-  test('calculation flags missing bank details as blocking', async () => {
-    const run = await ctx.call(tokens.payroll, 'POST', `${RUN}/calculate`);
-    expect(run.body.status).toBe('calculated');
-    expect(run.body.calculatedEmployees).toBe(run.body.totalEmployees);
-    expect(run.body.totalEmployees).toBeLessThan(SEED_SIZE); // contractors are outside payroll
-    expect(run.body.blocking).toBe(12);
-    expect(run.body.gross - run.body.deductions).toBe(run.body.net);
-
-    const exceptions = await ctx.call(tokens.auditor, 'GET', `${RUN}/exceptions`);
-    expect(exceptions.body[0]).toMatchObject({ code: 'BANK_MISSING', severity: 'blocking', employeeId: 'EMP00001' });
-    expect((await ctx.call(tokens.payroll, 'POST', `${RUN}/import/commit`, csv('EMP00001,0,0,0,30,'))).status).toBe(
+  test('calculation flags the new joiners without bank details', async () => {
+    const calculated = await ctx.call(tokens.payroll, 'POST', `${run}/calculate`);
+    expect(calculated.body).toMatchObject({ status: 'calculated', blocking: 12 });
+    expect(calculated.body.calculatedEmployees).toBe(calculated.body.totalEmployees);
+    expect(calculated.body.totalEmployees).toBeLessThan(SEED_SIZE);
+    expect(calculated.body.gross - calculated.body.deductions).toBe(calculated.body.net);
+    const exceptions = await ctx.call(tokens.auditor, 'GET', `${run}/exceptions`);
+    expect(exceptions.body[0]).toMatchObject({
+      code: 'BANK_MISSING',
+      severity: 'blocking',
+      employeeId: newJoiners(SEED_SIZE)[0],
+    });
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/import/commit`, csv('EMP00001,0,0,0,31,'))).status).toBe(
       409,
     );
     expect((await ctx.call(tokens.employee, 'PATCH', '/api/employees/EMP00001', { taxRegime: 'old' })).status).toBe(
       409,
     );
-    expect((await ctx.call(tokens.payroll, 'POST', `${RUN}/submit`)).status).toBe(409);
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/submit`)).status).toBe(409);
   });
 
-  test('lines carry the current statutory rules', async () => {
-    const lines = await ctx.call(tokens.auditor, 'GET', `${RUN}/lines?size=10&search=Gurugram`);
+  test('lines carry the statutory rules for their state', async () => {
+    const lines = await ctx.call(tokens.auditor, 'GET', `${run}/lines?size=10&search=Gurugram`);
     const haryana = lines.body.items[0];
     expect(haryana.state).toBe('Haryana');
     expect(haryana.professionalTax).toBe(0);
     expect(haryana.labourWelfareFund).toBeGreaterThan(0);
-    expect(haryana.ruleNotes).toContain(
-      'EPF wage ceiling split for September 2026: ₹15,000 for 1–16 Sep, ₹25,000 from 17 Sep',
-    );
-    const flagged = await ctx.call(tokens.auditor, 'GET', `${RUN}/lines?exception=true&size=100`);
-    expect(flagged.body.total).toBeGreaterThanOrEqual(12);
+    expect(haryana.ruleNotes).toContain('Haryana does not levy professional tax');
   });
 
-  test('fixing bank details and recalculating clears the gate', async () => {
-    for (let n = 1; n <= 12; n++) {
+  test('Finance can send a run back with a note; it is fixed and resubmitted', async () => {
+    for (const code of newJoiners(SEED_SIZE)) {
       expect(
-        (
-          await ctx.call(tokens.hr, 'PATCH', `/api/employees/${employeeId(n)}`, {
-            bankReady: true,
-            bankAccountLast4: '1234',
-          })
-        ).status,
+        (await ctx.call(tokens.hr, 'PATCH', `/api/employees/${code}`, { bankReady: true, bankAccountLast4: '1234' }))
+          .status,
       ).toBe(200);
     }
-    const run = await ctx.call(tokens.payroll, 'POST', `${RUN}/calculate`);
-    expect(run.body.blocking).toBe(0);
-  });
-
-  test('maker-checker: the preparer submits and only Finance approves', async () => {
-    expect((await ctx.call(tokens.finance, 'POST', `${RUN}/submit`)).status).toBe(403);
-    const submitted = await ctx.call(tokens.payroll, 'POST', `${RUN}/submit`);
-    expect(submitted.body).toMatchObject({ status: 'approval_pending', preparedBy: 'USR-payroll' });
-    expect((await ctx.call(tokens.payroll, 'POST', `${RUN}/approve`, {})).status).toBe(403);
-    await expect(approveRun(ctx.database.db, DEMO_RUN_ID, 'USR-payroll')).rejects.toThrow(
-      'Preparer cannot approve the same run',
-    );
-    expect((await ctx.call(tokens.hr, 'PATCH', '/api/employees/EMP00001', { bankReady: false })).status).toBe(409);
-    expect((await ctx.call(tokens.employee, 'GET', `${RUN}/payslip/EMP00001`)).status).toBe(403);
-    expect((await ctx.call(tokens.finance, 'GET', `${RUN}/export/bank-demo`)).status).toBe(409);
-
-    const approved = await ctx.call(tokens.finance, 'POST', `${RUN}/approve`, { note: 'Checked totals' });
-    expect(approved.body).toMatchObject({ status: 'approved', approvedBy: 'USR-finance' });
-    expect((await ctx.call(tokens.payroll, 'POST', `${RUN}/calculate`)).status).toBe(409);
-  });
-
-  test('after approval: payslips, exports and reconciliation', async () => {
-    const payslip = await ctx.call(tokens.employee, 'GET', `${RUN}/payslip/EMP00001`);
-    expect(payslip.body.period).toBe('2026-09');
-    expect(payslip.body.line.variablePay).toBe(250000);
-    expect((await ctx.call(tokens.employee, 'GET', `${RUN}/payslip/EMP00002`)).status).toBe(403);
-
-    const bank = await ctx.call(tokens.finance, 'GET', `${RUN}/export/bank-demo`);
-    expect(bank.text.startsWith('"DEMO ONLY - NOT A BANK UPLOAD FILE"')).toBe(true);
-    const ecr = await ctx.call(tokens.auditor, 'GET', `${RUN}/export/epf-prep`);
-    expect(ecr.text.split('\r\n')[0]).toContain('"EPS wages INR"');
-    expect((await ctx.call(tokens.auditor, 'GET', `${RUN}/export/unknown`)).status).toBe(400);
-
-    expect((await ctx.call(tokens.payroll, 'POST', `${RUN}/reconcile-demo`)).status).toBe(403);
-    expect((await ctx.call(tokens.finance, 'POST', `${RUN}/reconcile-demo`)).body.status).toBe('reconciled');
-
-    const audit = await ctx.call(tokens.auditor, 'GET', `${RUN}/audit`);
-    const actions = audit.body.map((event: { action: string }) => event.action);
-    expect(actions).toEqual(
-      expect.arrayContaining([
-        'payroll.calculated',
-        'payroll.submitted',
-        'payroll.approved',
-        'report.exported',
-        'payments.reconciled.demo',
-        'inputs.imported',
-      ]),
-    );
-  });
-
-  test('demo reset returns the run to draft and removes added people', async () => {
-    await ctx.call(tokens.admin, 'POST', '/api/demo/reset');
-    const run = await ctx.call(tokens.hr, 'GET', RUN);
-    expect(run.body).toMatchObject({ status: 'draft', calculatedEmployees: 0 });
-    expect((await ctx.call(tokens.hr, 'GET', '/api/employees/EMP00001')).body).toMatchObject({
-      bankReady: false,
-      unpaidDays: 0,
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/calculate`)).body.blocking).toBe(0);
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/submit`)).status).toBe(403);
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/submit`)).body.status).toBe('approval_pending');
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/reject`, { note: '' })).status).toBe(400);
+    const rejected = await ctx.call(tokens.finance, 'POST', `${run}/reject`, { note: 'Check the bonus for EMP00001' });
+    expect(rejected.body).toMatchObject({ status: 'calculated', rejectionNote: 'Check the bonus for EMP00001' });
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/submit`)).body).toMatchObject({
+      status: 'approval_pending',
+      rejectionNote: null,
     });
+  });
+
+  test('maker-checker: only Finance approves, and never the preparer', async () => {
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/approve`, {})).status).toBe(403);
+    const preparer = (await ctx.call(tokens.hr, 'GET', run)).body.preparedBy;
+    const runId = run.split('/').at(-1)!;
+    const organizationId = (await ctx.call(tokens.hr, 'GET', '/api/bootstrap')).body.organization.id;
+    await expect(approveRun(ctx.database.db, organizationId, runId, preparer)).rejects.toThrow(
+      'Preparer cannot approve',
+    );
+    expect((await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00001`)).status).toBe(403);
+    expect((await ctx.call(tokens.finance, 'GET', `${run}/export/bank-demo`)).status).toBe(409);
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/approve`, { note: 'Checked totals' })).body.status).toBe(
+      'approved',
+    );
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/calculate`)).status).toBe(409);
+  });
+
+  test('after approval: payslips, exports, payment and closing the period', async () => {
+    const payslip = await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00001`);
+    expect(payslip.body).toMatchObject({ period: '2026-10' });
+    expect(payslip.body.line.variablePay).toBe(250000);
+    expect((await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00002`)).status).toBe(403);
+    expect((await ctx.call(tokens.employee, 'GET', '/api/me/payslips')).body).toHaveLength(1);
+
+    const bank = await ctx.call(tokens.finance, 'GET', `${run}/export/bank-demo`);
+    expect(bank.text.startsWith('"DEMO ONLY - NOT A BANK UPLOAD FILE"')).toBe(true);
+    expect((await ctx.call(tokens.auditor, 'GET', `${run}/export/epf-prep`)).text.split('\r\n')[0]).toContain(
+      '"EPS wages INR"',
+    );
+    // Casual support staff earn within the ESI ceiling.
+    expect((await ctx.call(tokens.auditor, 'GET', `${run}/export/esi-prep`)).text.split('\r\n').length).toBeGreaterThan(
+      3,
+    );
+
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/close`)).status).toBe(409);
+    expect((await ctx.call(tokens.payroll, 'POST', `${run}/reconcile`)).status).toBe(403);
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/reconcile`)).body.status).toBe('paid');
+    expect((await ctx.call(tokens.hr, 'POST', `${run}/close`)).status).toBe(403);
+    expect((await ctx.call(tokens.finance, 'POST', `${run}/close`)).body.status).toBe('closed');
+
+    const actions = (await ctx.call(tokens.auditor, 'GET', `${run}/audit`)).body.map(
+      (event: { action: string }) => event.action,
+    );
+    expect(actions).toEqual(
+      expect.arrayContaining(['payroll.calculated', 'payroll.sent_back', 'payroll.approved', 'payroll.closed']),
+    );
+  });
+
+  test('new periods: payment deadline, no duplicates, and year-to-date tax from approved runs', async () => {
+    const create = (body: object) => ctx.call(tokens.payroll, 'POST', '/api/runs', body);
+    expect((await create({ year: 2026, month: 11, paymentDate: '2026-12-08' })).status).toBe(400);
+    const november = await create({ year: 2026, month: 11, paymentDate: '2026-11-30' });
+    expect(november.body).toMatchObject({ status: 'draft', month: 11 });
+    expect((await create({ year: 2026, month: 11, paymentDate: '2026-11-30' })).status).toBe(409);
+    expect(
+      (await ctx.call(tokens.auditor, 'POST', '/api/runs', { year: 2026, month: 12, paymentDate: '2026-12-31' }))
+        .status,
+    ).toBe(403);
+
+    await ctx.call(tokens.payroll, 'POST', `/api/runs/${november.body.id}/calculate`);
+    const october = (await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00001`)).body.line;
+    const novemberLine = (await ctx.call(tokens.hr, 'GET', `/api/runs/${november.body.id}/payslip/EMP00001`)).body.line;
+    // November's projection counts October's actual pay (including its bonus) instead of assuming a regular month.
+    expect(novemberLine.annualProjectedTax).toBeGreaterThanOrEqual(october.annualProjectedTax);
+    const runs = (await ctx.call(tokens.hr, 'GET', '/api/runs')).body.map((item: { month: number }) => item.month);
+    expect(runs).toEqual([11, 10]);
   });
 });

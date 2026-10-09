@@ -1,173 +1,124 @@
 import type { FastifyInstance } from 'fastify';
-import { and, eq, gt, inArray, lte, sql } from 'drizzle-orm';
 import {
   APPROVED_STATUSES,
   approveBody,
   can,
+  createRunBody,
   csvBody,
   lineListQuery,
+  rejectBody,
   reportKindParam,
-  type Bootstrap,
 } from '@payflow/shared';
-import { appUsers, authSessions, employees, payrollInputs, payrollLines, payrollRuns } from '../../db/schema.js';
-import {
-  DEMO_ORGANIZATION,
-  DEMO_RUN_ID,
-  demoSeedSize,
-  resetDemoInputs,
-  SEEDED_BANK_EXCEPTIONS,
-} from '../../db/seed.js';
-import { recordAudit } from '../../lib/audit.js';
+import { audit } from '../../lib/audit.js';
 import { toCsv } from '../../lib/csv.js';
-import { conflict, validate } from '../../lib/errors.js';
-import { allow, assertSelfOrPermission, currentUser } from '../../plugins/auth.js';
+import { conflict, forbidden, validate } from '../../lib/errors.js';
+import { allow, assertSelfOrPermission, currentUser, orgOf } from '../../plugins/auth.js';
 import { commitImport, reviewImport } from './imports.js';
 import { buildReport } from './reports.js';
 import * as runs from './service.js';
 
-const employeeId = (n: number) => `EMP${String(n).padStart(5, '0')}`;
-
 export async function runRoutes(app: FastifyInstance): Promise<void> {
   const { db } = app;
-  const runParam = (params: unknown) => (params as { id: string }).id;
+  const runParam = (params: unknown) => String((params as { id: string }).id);
 
-  app.get('/api/bootstrap', async request => {
-    const run = await runs.getRun(db, await runs.currentRunId(db));
-    const user = currentUser(request);
-    const currentRun = can(user.role, 'runs.read') ? await runs.summarize(db, run) : runs.toPeriod(run);
-    return { organization: DEMO_ORGANIZATION, currentRun } satisfies Bootstrap;
-  });
+  app.get('/api/runs', { preHandler: allow('runs.read') }, async request => runs.listRuns(db, orgOf(request)));
 
-  app.get('/api/runs/:id', async request => {
-    const run = await runs.getRun(db, runParam(request.params));
-    return can(currentUser(request).role, 'runs.read') ? runs.summarize(db, run) : runs.toPeriod(run);
-  });
-
-  app.get('/api/runs/:id/lines', { preHandler: allow('runs.read') }, async request =>
-    runs.listLines(db, runParam(request.params), validate(lineListQuery, request.query)),
-  );
-
-  app.get('/api/runs/:id/exceptions', { preHandler: allow('runs.read') }, async request =>
-    runs.listExceptions(db, runParam(request.params)),
-  );
-
-  app.get('/api/runs/:id/audit', { preHandler: allow('audit.read') }, async request =>
-    runs.listAudit(db, runParam(request.params)),
-  );
-
-  app.post('/api/runs/:id/calculate', { preHandler: allow('runs.prepare') }, async request => {
-    const id = runParam(request.params);
-    const count = await runs.calculateRun(db, id);
-    const run = await runs.getRun(db, id);
-    await recordAudit(db, {
-      runId: id,
-      actor: currentUser(request).id,
-      action: 'payroll.calculated',
-      details: { employees: count, version: run.version },
-    });
+  app.post('/api/runs', { preHandler: allow('runs.create') }, async request => {
+    const body = validate(createRunBody, request.body);
+    const run = await runs.createRun(db, orgOf(request), body);
+    await audit(db, request, 'payroll.run.created', { year: body.year, month: body.month }, run.id);
     return runs.summarize(db, run);
   });
 
+  app.get('/api/runs/:id', async request => {
+    const run = await runs.getRun(db, orgOf(request), runParam(request.params));
+    return can(currentUser(request).role, 'runs.read') ? runs.summarize(db, run) : runs.toPeriod(db, run);
+  });
+
+  app.get('/api/runs/:id/lines', { preHandler: allow('runs.read') }, async request =>
+    runs.listLines(db, orgOf(request), runParam(request.params), validate(lineListQuery, request.query)),
+  );
+
+  app.get('/api/runs/:id/exceptions', { preHandler: allow('runs.read') }, async request =>
+    runs.listExceptions(db, orgOf(request), runParam(request.params)),
+  );
+
+  app.get('/api/runs/:id/audit', { preHandler: allow('audit.read') }, async request =>
+    runs.listAudit(db, orgOf(request), runParam(request.params)),
+  );
+
+  /** Lifecycle actions share one shape: perform, audit, return the fresh summary. */
+  const action = (
+    path: string,
+    permission: Parameters<typeof allow>[0],
+    event: string,
+    perform: (organizationId: string, runId: string, request: Parameters<typeof currentUser>[0]) => Promise<unknown>,
+  ) =>
+    app.post(`/api/runs/:id/${path}`, { preHandler: allow(permission) }, async request => {
+      const id = runParam(request.params);
+      const details = await perform(orgOf(request), id, request);
+      await audit(db, request, event, (details as Record<string, unknown>) ?? {}, id);
+      return runs.summarize(db, await runs.getRun(db, orgOf(request), id));
+    });
+
+  action('calculate', 'runs.prepare', 'payroll.calculated', async (organizationId, id) => ({
+    employees: await runs.calculateRun(db, organizationId, id),
+  }));
+  action('submit', 'runs.prepare', 'payroll.submitted', (organizationId, id, request) =>
+    runs.submitRun(db, organizationId, id, currentUser(request).id),
+  );
+  action('approve', 'runs.approve', 'payroll.approved', async (organizationId, id, request) => {
+    const { note } = validate(approveBody, request.body);
+    await runs.approveRun(db, organizationId, id, currentUser(request).id);
+    return { note: note ?? '' };
+  });
+  action('reject', 'runs.reject', 'payroll.sent_back', async (organizationId, id, request) => {
+    const { note } = validate(rejectBody, request.body);
+    await runs.rejectRun(db, organizationId, id, note);
+    return { note };
+  });
+  action('reconcile', 'runs.reconcile', 'payments.reconciled.demo', async (organizationId, id) => {
+    await runs.markPaid(db, organizationId, id);
+    return { notice: 'Synthetic demonstration only' };
+  });
+  action('close', 'runs.close', 'payroll.closed', (organizationId, id) => runs.closeRun(db, organizationId, id));
+
   app.post('/api/runs/:id/import/preview', { preHandler: allow('runs.prepare') }, async request =>
-    reviewImport(db, validate(csvBody, request.body).csv),
+    reviewImport(db, orgOf(request), runParam(request.params), validate(csvBody, request.body).csv),
   );
 
   app.post('/api/runs/:id/import/commit', { preHandler: allow('runs.prepare') }, async request => {
     const id = runParam(request.params);
-    const imported = await commitImport(db, id, validate(csvBody, request.body).csv);
-    await recordAudit(db, {
-      runId: id,
-      actor: currentUser(request).id,
-      action: 'inputs.imported',
-      details: { count: imported },
-    });
+    const imported = await commitImport(db, orgOf(request), id, validate(csvBody, request.body).csv);
+    await audit(db, request, 'inputs.imported', { count: imported }, id);
     return { ok: true, imported };
   });
 
-  app.post('/api/runs/:id/submit', { preHandler: allow('runs.prepare') }, async request => {
-    const id = runParam(request.params);
-    await runs.submitRun(db, id, currentUser(request).id);
-    await recordAudit(db, { runId: id, actor: currentUser(request).id, action: 'payroll.submitted' });
-    return runs.summarize(db, await runs.getRun(db, id));
-  });
-
-  app.post('/api/runs/:id/approve', { preHandler: allow('runs.approve') }, async request => {
-    const id = runParam(request.params);
-    const { note } = validate(approveBody, request.body);
-    await runs.approveRun(db, id, currentUser(request).id);
-    await recordAudit(db, {
-      runId: id,
-      actor: currentUser(request).id,
-      action: 'payroll.approved',
-      details: { note: note ?? '' },
-    });
-    return runs.summarize(db, await runs.getRun(db, id));
-  });
-
-  app.post('/api/runs/:id/reconcile-demo', { preHandler: allow('runs.reconcile') }, async request => {
-    const id = runParam(request.params);
-    await runs.reconcileRun(db, id);
-    await recordAudit(db, {
-      runId: id,
-      actor: currentUser(request).id,
-      action: 'payments.reconciled.demo',
-      details: { notice: 'Synthetic demonstration only' },
-    });
-    return runs.summarize(db, await runs.getRun(db, id));
-  });
-
   app.get('/api/runs/:id/payslip/:employeeId', async request => {
-    const { id, employeeId: target } = request.params as { id: string; employeeId: string };
-    assertSelfOrPermission(request, target, 'runs.read');
-    return runs.getPayslip(db, id, target, currentUser(request).role === 'employee');
+    const { id, employeeId } = request.params as { id: string; employeeId: string };
+    const code = employeeId.toUpperCase();
+    assertSelfOrPermission(request, code, 'runs.read');
+    return runs.getPayslip(db, orgOf(request), id, code, currentUser(request).role === 'employee');
+  });
+
+  /** The signed-in employee's approved payslips, newest first. */
+  app.get('/api/me/payslips', async request => {
+    const user = currentUser(request);
+    if (!user.employeeKey) throw forbidden('This account is not linked to an employee record');
+    return runs.payslipsFor(db, user.organizationId, user.employeeKey);
   });
 
   app.get('/api/runs/:id/export/:kind', { preHandler: allow('reports.export') }, async (request, reply) => {
     const { id, kind: rawKind } = request.params as { id: string; kind: string };
     const kind = validate(reportKindParam, rawKind);
-    const run = await runs.getRun(db, id);
+    const run = await runs.getRun(db, orgOf(request), id);
     if (kind === 'bank-demo' && !APPROVED_STATUSES.includes(run.status)) throw conflict('Bank file requires approval');
-    const output = toCsv(buildReport(kind, await runs.linesForExport(db, id)));
-    await recordAudit(db, { runId: id, actor: currentUser(request).id, action: 'report.exported', details: { kind } });
+    const output = toCsv(buildReport(kind, await runs.linesForExport(db, orgOf(request), id)));
+    await audit(db, request, 'report.exported', { kind }, id);
+    const period = `${run.year}-${String(run.month).padStart(2, '0')}`;
     return reply
       .header('content-type', 'text/csv; charset=utf-8')
-      .header('content-disposition', `attachment; filename="${id}-${kind}.csv"`)
+      .header('content-disposition', `attachment; filename="payroll-${period}-${kind}.csv"`)
       .send(output);
-  });
-
-  /** Restores the synthetic company: removes added people and their accounts, and returns the run to draft. */
-  app.post('/api/demo/reset', { preHandler: allow('demo.reset') }, async request => {
-    const lastSeeded = employeeId(await demoSeedSize(db));
-    await db.transaction(async tx => {
-      const added = tx.select({ id: employees.id }).from(employees).where(gt(employees.id, lastSeeded));
-      const addedUsers = tx.select({ id: appUsers.id }).from(appUsers).where(inArray(appUsers.employeeId, added));
-      await tx.delete(payrollLines).where(eq(payrollLines.runId, DEMO_RUN_ID));
-      await tx.delete(authSessions).where(inArray(authSessions.userId, addedUsers));
-      await tx.delete(appUsers).where(inArray(appUsers.employeeId, added));
-      await tx.delete(payrollInputs).where(inArray(payrollInputs.employeeId, added));
-      await tx.delete(employees).where(gt(employees.id, lastSeeded));
-      await tx
-        .update(payrollRuns)
-        .set({
-          status: 'draft',
-          preparedBy: null,
-          approvedBy: null,
-          approvedAt: null,
-          version: sql`${payrollRuns.version} + 1`,
-          updatedAt: sql`now()`,
-        })
-        .where(eq(payrollRuns.id, DEMO_RUN_ID));
-      await tx
-        .update(employees)
-        .set({ bankReady: false, bankAccountLast4: null })
-        .where(lte(employees.id, employeeId(SEEDED_BANK_EXCEPTIONS)));
-      await tx
-        .update(employees)
-        .set({ taxRegime: 'new' })
-        .where(and(eq(employees.id, 'EMP00001')));
-      await resetDemoInputs(tx);
-    });
-    await recordAudit(db, { runId: DEMO_RUN_ID, actor: currentUser(request).id, action: 'demo.reset' });
-    return runs.summarize(db, await runs.getRun(db, DEMO_RUN_ID));
   });
 }

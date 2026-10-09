@@ -1,91 +1,85 @@
 import type { FastifyInstance } from 'fastify';
 import {
-  BRANCHES,
   can,
   createEmployeeBody,
-  EMPLOYMENT_TYPES,
   employeeListQuery,
+  exitBody,
   managersQuery,
-  POSITION_LEVELS,
+  salaryRevisionBody,
   updateEmployeeBody,
-  type EmploymentType,
-  type HierarchySummary,
 } from '@payflow/shared';
-import { and, eq, isNotNull, sql } from 'drizzle-orm';
-import { employees } from '../../db/schema.js';
-import { recordAudit } from '../../lib/audit.js';
+import { audit } from '../../lib/audit.js';
 import { forbidden, validate } from '../../lib/errors.js';
-import { allow, assertSelfOrPermission, currentUser } from '../../plugins/auth.js';
-import { currentRunId } from '../runs/service.js';
+import { allow, assertSelfOrPermission, currentUser, orgOf } from '../../plugins/auth.js';
+import { refreshOpenRuns } from '../runs/service.js';
 import * as service from './service.js';
 
 export async function employeeRoutes(app: FastifyInstance): Promise<void> {
   const { db } = app;
+  const codeParam = (params: unknown) => String((params as { id: string }).id).toUpperCase();
 
   app.get('/api/employees', { preHandler: allow('employees.read') }, async request =>
-    service.listEmployees(db, await currentRunId(db), validate(employeeListQuery, request.query)),
+    service.listEmployees(db, orgOf(request), validate(employeeListQuery, request.query)),
   );
 
   app.post('/api/employees', { preHandler: allow('employees.write') }, async request => {
     const body = validate(createEmployeeBody, request.body);
-    const runId = await currentRunId(db);
-    const id = await service.createEmployee(db, runId, body);
-    await recordAudit(db, {
-      actor: currentUser(request).id,
-      action: 'employee.created',
-      details: { employeeId: id, employmentType: body.employmentType, positionLevel: body.positionLevel },
+    const code = await service.createEmployee(db, orgOf(request), body, currentUser(request).username);
+    await refreshOpenRuns(db, orgOf(request));
+    await audit(db, request, 'employee.created', {
+      employeeId: code,
+      employmentType: body.employmentType,
+      positionLevel: body.positionLevel,
     });
-    return service.getEmployee(db, runId, id);
+    return service.getEmployee(db, orgOf(request), code);
   });
 
   app.get('/api/employees/:id', async request => {
-    const { id } = request.params as { id: string };
-    assertSelfOrPermission(request, id, 'employees.read');
-    return service.getEmployee(db, await currentRunId(db), id);
+    const code = codeParam(request.params);
+    assertSelfOrPermission(request, code, 'employees.read');
+    return service.getEmployee(db, orgOf(request), code);
   });
 
   app.patch('/api/employees/:id', async request => {
-    const { id } = request.params as { id: string };
-    const user = currentUser(request);
-    assertSelfOrPermission(request, id, 'employees.write');
+    const code = codeParam(request.params);
+    assertSelfOrPermission(request, code, 'employees.write');
     const body = validate(updateEmployeeBody, request.body);
-    await service.updateEmployee(db, await currentRunId(db), id, body, user.role);
-    await recordAudit(db, {
-      actor: user.id,
-      action: 'employee.updated',
-      details: { employeeId: id, fields: Object.keys(body) },
-    });
-    return { ok: true, message: 'Employee updated. Recalculate the payroll run to refresh exceptions.' };
+    await service.updateEmployee(db, orgOf(request), code, body, currentUser(request));
+    if (body.payGroupId) await refreshOpenRuns(db, orgOf(request));
+    await audit(db, request, 'employee.updated', { employeeId: code, fields: Object.keys(body) });
+    return { ok: true, message: 'Employee updated. Recalculate open runs to apply the change.' };
   });
 
-  app.get('/api/hierarchy/summary', { preHandler: allow('hierarchy.read') }, async (): Promise<HierarchySummary> => {
-    const counts = await db
-      .select({
-        employmentType: employees.employmentType,
-        level: employees.positionLevel,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(employees)
-      .where(eq(employees.employmentStatus, 'active'))
-      .groupBy(employees.employmentType, employees.positionLevel);
-    const departments = await db
-      .selectDistinct({ department: employees.department })
-      .from(employees)
-      .where(and(isNotNull(employees.department)))
-      .orderBy(employees.department);
-    return {
-      employmentTypes: [...EMPLOYMENT_TYPES],
-      positionLevels: [...POSITION_LEVELS],
-      branches: [...BRANCHES],
-      departments: departments.map(row => row.department),
-      total: counts.reduce((sum, row) => sum + row.count, 0),
-      counts: counts.map(row => ({ ...row, employmentType: row.employmentType as EmploymentType })),
-    };
+  app.get('/api/employees/:id/salary-revisions', async request => {
+    const code = codeParam(request.params);
+    assertSelfOrPermission(request, code, 'employees.read');
+    return service.listRevisions(db, orgOf(request), code);
   });
+
+  app.post('/api/employees/:id/salary-revisions', { preHandler: allow('employees.write') }, async request => {
+    const code = codeParam(request.params);
+    const body = validate(salaryRevisionBody, request.body);
+    await service.addRevision(db, orgOf(request), code, body, currentUser(request).username);
+    await audit(db, request, 'employee.salary.revised', { employeeId: code, effectiveFrom: body.effectiveFrom });
+    return service.listRevisions(db, orgOf(request), code);
+  });
+
+  app.post('/api/employees/:id/exit', { preHandler: allow('employees.write') }, async request => {
+    const code = codeParam(request.params);
+    const body = validate(exitBody, request.body);
+    await service.exitEmployee(db, orgOf(request), code, body);
+    await refreshOpenRuns(db, orgOf(request));
+    await audit(db, request, 'employee.exited', { employeeId: code, exitDate: body.exitDate });
+    return service.getEmployee(db, orgOf(request), code);
+  });
+
+  app.get('/api/hierarchy/summary', { preHandler: allow('hierarchy.read') }, async request =>
+    service.hierarchySummary(db, orgOf(request)),
+  );
 
   app.get('/api/hierarchy/managers', async request => {
     if (!can(currentUser(request).role, 'employees.write')) throw forbidden();
     const query = validate(managersQuery, request.query);
-    return service.managerOptions(db, query.level, query.search);
+    return service.managerOptions(db, orgOf(request), query.level, query.search);
   });
 }

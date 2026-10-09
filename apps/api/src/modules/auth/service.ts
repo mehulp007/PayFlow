@@ -1,32 +1,56 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
 import { and, asc, eq, gt, sql } from 'drizzle-orm';
-import type { CreateUserBody, CreatedUser, LoginResult, Role, User } from '@payflow/shared';
-import type { Db } from '../../db/client.js';
-import { appMeta, appUsers, authSessions, employees } from '../../db/schema.js';
-import { badRequest, conflict, forbidden, HttpError, notFound } from '../../lib/errors.js';
+import type { LoginResult, Role, User } from '@payflow/shared';
+import type { Db, Tx } from '../../db/client.js';
+import { appUsers, authSessions, employees } from '../../db/schema.js';
+import { badRequest, forbidden, HttpError, notFound } from '../../lib/errors.js';
 
 const SESSION_HOURS = 12;
 const LOCKOUT_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60_000;
 const failures = new Map<string, { count: number; until: number }>();
 
-const userColumns = {
-  id: appUsers.id,
-  username: appUsers.username,
-  role: appUsers.role,
-  employeeId: appUsers.employeeId,
-  mustChangePassword: appUsers.mustChangePassword,
-};
-const toUser = (row: {
-  id: string;
-  username: string;
-  role: string;
-  employeeId: string | null;
-  mustChangePassword: boolean;
-}): User => ({ ...row, role: row.role as Role });
+/** The signed-in account as the API sees it: always tied to one organization. */
+export interface Principal extends User {
+  organizationId: string;
+  /** Internal key of the linked employee record. */
+  employeeKey: string | null;
+  builtIn: boolean;
+}
 
-export function temporaryPassword(): string {
+const principalColumns = {
+  id: appUsers.id,
+  organizationId: appUsers.organizationId,
+  username: appUsers.username,
+  displayName: appUsers.displayName,
+  role: appUsers.role,
+  employeeKey: appUsers.employeeId,
+  employeeId: employees.code,
+  mustChangePassword: appUsers.mustChangePassword,
+  builtIn: appUsers.builtIn,
+};
+type PrincipalRow = Omit<Principal, 'role'> & { role: string };
+const toPrincipal = (row: PrincipalRow): Principal => ({ ...row, role: row.role as Role });
+/** The public shape of an account (no organization or internal keys). */
+export const toUser = ({
+  id,
+  username,
+  displayName,
+  role,
+  employeeId,
+  mustChangePassword,
+  builtIn,
+}: Principal): User => ({
+  id,
+  username,
+  displayName,
+  role,
+  employeeId,
+  mustChangePassword,
+  builtIn,
+});
+
+export function randomPassword(): string {
   return `${randomBytes(18).toString('base64url')}aA1!`;
 }
 export function hashPassword(password: string, salt = randomBytes(16).toString('hex')): string {
@@ -37,20 +61,41 @@ function passwordMatches(password: string, stored: string): boolean {
   if (!salt || !expected || !/^[0-9a-f]{128}$/.test(expected)) return false;
   return timingSafeEqual(scryptSync(password, salt, 64), Buffer.from(expected, 'hex'));
 }
-const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
+export const tokenHash = (token: string) => createHash('sha256').update(token).digest('hex');
 const isTokenShape = (token: string) => /^[A-Za-z0-9_-]{43}$/.test(token);
+
+function selectPrincipals(db: Db | Tx) {
+  return db.select(principalColumns).from(appUsers).leftJoin(employees, eq(employees.id, appUsers.employeeId));
+}
+
+export async function findPrincipal(db: Db | Tx, userId: string): Promise<Principal> {
+  const [row] = await selectPrincipals(db).where(eq(appUsers.id, userId));
+  if (!row) throw notFound('Account not found');
+  return toPrincipal(row);
+}
+
+/** Starts a 12-hour session and returns its bearer token. Only a hash of the token is stored. */
+export async function startSession(db: Db | Tx, userId: string): Promise<string> {
+  const token = randomBytes(32).toString('base64url');
+  await db.insert(authSessions).values({
+    tokenHash: tokenHash(token),
+    userId,
+    expiresAt: sql`now() + make_interval(hours => ${SESSION_HOURS})`,
+  });
+  return token;
+}
 
 export async function login(db: Db, username: string, password: string, source: string): Promise<LoginResult> {
   const name = username.trim().toLowerCase();
-  const invalid = () => new HttpError(401, 'Invalid username or password');
-  if (!/^[a-z0-9._-]{2,64}$/.test(name)) throw invalid();
+  const invalid = () => new HttpError(401, 'Invalid email or password');
+  if (!/^[a-z0-9._+@-]{2,120}$/.test(name)) throw invalid();
   const key = `${source}:${name}`;
   const failed = failures.get(key);
   if (failed && failed.count >= LOCKOUT_ATTEMPTS && failed.until > Date.now()) {
     throw new HttpError(429, 'Too many attempts. Try again in 15 minutes.');
   }
   const [account] = await db
-    .select({ ...userColumns, passwordHash: appUsers.passwordHash, active: appUsers.active })
+    .select({ id: appUsers.id, passwordHash: appUsers.passwordHash, active: appUsers.active })
     .from(appUsers)
     .where(eq(appUsers.username, name));
   if (!account?.active || !passwordMatches(password, account.passwordHash)) {
@@ -59,22 +104,16 @@ export async function login(db: Db, username: string, password: string, source: 
     throw invalid();
   }
   failures.delete(key);
-  const token = randomBytes(32).toString('base64url');
-  await db.insert(authSessions).values({
-    tokenHash: tokenHash(token),
-    userId: account.id,
-    expiresAt: sql`now() + make_interval(hours => ${SESSION_HOURS})` as unknown as string,
-  });
-  const { passwordHash: _hash, active: _active, ...user } = account;
-  return { token, user: toUser(user) };
+  return { token: await startSession(db, account.id), user: toUser(await findPrincipal(db, account.id)) };
 }
 
-export async function sessionUser(db: Db, token: string): Promise<User | null> {
+export async function sessionPrincipal(db: Db, token: string): Promise<Principal | null> {
   if (!isTokenShape(token)) return null;
   const [row] = await db
-    .select(userColumns)
+    .select(principalColumns)
     .from(authSessions)
     .innerJoin(appUsers, eq(appUsers.id, authSessions.userId))
+    .leftJoin(employees, eq(employees.id, appUsers.employeeId))
     .where(
       and(
         eq(authSessions.tokenHash, tokenHash(token)),
@@ -82,56 +121,38 @@ export async function sessionUser(db: Db, token: string): Promise<User | null> {
         eq(appUsers.active, true),
       ),
     );
-  return row ? toUser(row) : null;
+  return row ? toPrincipal(row) : null;
 }
 
 export async function logout(db: Db, token: string): Promise<void> {
   if (isTokenShape(token)) await db.delete(authSessions).where(eq(authSessions.tokenHash, tokenHash(token)));
 }
 
-export async function listUsers(db: Db): Promise<User[]> {
-  const rows = await db
-    .select(userColumns)
-    .from(appUsers)
-    .where(eq(appUsers.active, true))
+export async function listUsers(db: Db, organizationId: string): Promise<User[]> {
+  const rows = await selectPrincipals(db)
+    .where(and(eq(appUsers.organizationId, organizationId), eq(appUsers.active, true)))
     .orderBy(asc(appUsers.username));
-  return rows.map(toUser);
+  return rows.map(row => toUser(toPrincipal(row)));
 }
 
-export async function createUser(db: Db, body: CreateUserBody): Promise<CreatedUser> {
-  if (body.employeeId) {
-    const [employee] = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(and(eq(employees.id, body.employeeId), eq(employees.employmentStatus, 'active')));
-    if (!employee) throw badRequest('Active employee ID not found');
-  }
-  const password = temporaryPassword();
-  try {
-    const [row] = await db
-      .insert(appUsers)
-      .values({
-        id: `USR-${randomBytes(12).toString('hex')}`,
-        username: body.username,
-        role: body.role,
-        employeeId: body.employeeId ?? null,
-        passwordHash: hashPassword(password),
-        mustChangePassword: true,
-      })
-      .returning(userColumns);
-    return { ...toUser(row), temporaryPassword: password };
-  } catch (error) {
-    const message = String((error as { cause?: unknown }).cause ?? error);
-    if (message.includes('one_active_employee_account')) throw conflict('This employee already has an account');
-    if (message.includes('unique')) throw conflict('Username already exists');
-    throw error;
-  }
-}
-
-export async function removeUser(db: Db, id: string): Promise<void> {
-  const [user] = await db.select({ builtIn: appUsers.builtIn }).from(appUsers).where(eq(appUsers.id, id));
+async function userInOrganization(db: Db | Tx, organizationId: string, id: string) {
+  const [user] = await db
+    .select({ id: appUsers.id, builtIn: appUsers.builtIn })
+    .from(appUsers)
+    .where(and(eq(appUsers.id, id), eq(appUsers.organizationId, organizationId)));
   if (!user) throw notFound('Account not found');
+  return user;
+}
+
+export async function removeUser(
+  db: Db,
+  organizationId: string,
+  id: string,
+  ownerUserId: string | null,
+): Promise<void> {
+  const user = await userInOrganization(db, organizationId, id);
   if (user.builtIn) throw forbidden('Built-in demo accounts cannot be removed');
+  if (id === ownerUserId) throw forbidden('The organization owner cannot be removed');
   await db.transaction(async tx => {
     await tx.delete(authSessions).where(eq(authSessions.userId, id));
     await tx.delete(appUsers).where(eq(appUsers.id, id));
@@ -139,15 +160,14 @@ export async function removeUser(db: Db, id: string): Promise<void> {
 }
 
 /** Issues a one-time password and ends the person's sessions. */
-export async function resetUserPassword(db: Db, id: string): Promise<string> {
-  const password = temporaryPassword();
+export async function resetUserPassword(db: Db, organizationId: string, id: string): Promise<string> {
+  await userInOrganization(db, organizationId, id);
+  const password = randomPassword();
   await db.transaction(async tx => {
-    const updated = await tx
+    await tx
       .update(appUsers)
       .set({ passwordHash: hashPassword(password), mustChangePassword: true })
-      .where(and(eq(appUsers.id, id), eq(appUsers.active, true)))
-      .returning({ id: appUsers.id });
-    if (!updated.length) throw notFound('Account not found');
+      .where(eq(appUsers.id, id));
     await tx.delete(authSessions).where(eq(authSessions.userId, id));
   });
   return password;
@@ -168,47 +188,4 @@ export async function changePassword(db: Db, userId: string, current: string, ne
       .where(eq(appUsers.id, userId));
     await tx.delete(authSessions).where(eq(authSessions.userId, userId));
   });
-}
-
-export const DEMO_ACCOUNTS: Array<{ username: string; role: Role; employeeId: string | null }> = [
-  { username: 'admin', role: 'admin', employeeId: null },
-  { username: 'hr', role: 'hr-operator', employeeId: null },
-  { username: 'payroll', role: 'payroll-operator', employeeId: null },
-  { username: 'finance', role: 'finance-approver', employeeId: null },
-  { username: 'auditor', role: 'auditor', employeeId: null },
-  { username: 'employee', role: 'employee', employeeId: 'EMP00001' },
-];
-
-/**
- * Creates the six built-in demo accounts once, each with its own random password (or a fixed password
- * for automated tests). Credentials are written to a private local file when a path is given.
- */
-export async function seedDemoAccounts(db: Db, options: { password?: string; credentialFile?: string }): Promise<void> {
-  const [done] = await db.select().from(appMeta).where(eq(appMeta.key, 'demo_accounts'));
-  if (done) return;
-  const credentials = DEMO_ACCOUNTS.map(account => ({ ...account, password: options.password ?? temporaryPassword() }));
-  await db.transaction(async tx => {
-    for (const item of credentials) {
-      await tx.insert(appUsers).values({
-        id: `USR-${item.username}`,
-        username: item.username,
-        role: item.role,
-        employeeId: item.employeeId,
-        passwordHash: hashPassword(item.password),
-        mustChangePassword: false,
-        builtIn: true,
-      });
-    }
-    await tx.insert(appMeta).values({ key: 'demo_accounts', value: new Date().toISOString() });
-  });
-  if (options.credentialFile) {
-    const note = [
-      'PAYFLOW - SYNTHETIC DEMO CREDENTIALS',
-      'Each built-in account has its own password. Keep this file private. Do not use real payroll data.',
-      '',
-      ...credentials.map(item => `${item.username}\t${item.password}\t${item.role}`),
-      '',
-    ].join('\n');
-    await writeFile(options.credentialFile, note, { mode: 0o600 });
-  }
 }

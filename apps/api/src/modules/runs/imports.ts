@@ -1,10 +1,10 @@
 import { parse } from 'csv-parse/sync';
-import { inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { IMPORT_COLUMNS, type ImportPreview } from '@payflow/shared';
 import type { Db } from '../../db/client.js';
 import { employees, payrollInputs } from '../../db/schema.js';
 import { badRequest, conflict } from '../../lib/errors.js';
-import { getRun } from './service.js';
+import { getRun, syncInputs } from './service.js';
 
 type CsvRow = Record<(typeof IMPORT_COLUMNS)[number] | 'note', string | undefined>;
 const toPaise = (rupees: number) => Math.round(rupees * 100);
@@ -59,50 +59,74 @@ export function parseImport(text: string): ImportPreview {
   return result;
 }
 
-/** Adds database checks: unknown employees, and pay amounts for contractors (attendance only). */
-export async function reviewImport(db: Db, text: string): Promise<ImportPreview> {
+/**
+ * Adds database checks against the run: unknown or out-of-run employees, and pay amounts for contractors
+ * (attendance only). Employee IDs in the file are the organization's employee codes.
+ */
+export async function reviewImport(
+  db: Db,
+  organizationId: string,
+  runId: string,
+  text: string,
+): Promise<ImportPreview> {
+  const run = await getRun(db, organizationId, runId);
   const result = parseImport(text);
   if (!result.valid.length) return result;
-  const ids = result.valid.map(row => row.employeeId);
+  await syncInputs(db, run);
+  const codes = result.valid.map(row => row.employeeId);
   const found = await db
-    .select({ id: employees.id, payrollScope: employees.payrollScope })
+    .select({ code: employees.code, payrollScope: employees.payrollScope, inRun: payrollInputs.runId })
     .from(employees)
-    .where(inArray(employees.id, ids));
-  const known = new Map(found.map(row => [row.id, row.payrollScope]));
+    .leftJoin(payrollInputs, and(eq(payrollInputs.employeeId, employees.id), eq(payrollInputs.runId, runId)))
+    .where(and(eq(employees.organizationId, organizationId), inArray(employees.code, codes)));
+  const known = new Map(found.map(row => [row.code, row]));
   const rejected = new Set<string>();
   for (const row of result.valid) {
-    if (!known.has(row.employeeId)) {
-      result.errors.push({ row: 0, message: `Unknown employee: ${row.employeeId}` });
+    const employee = known.get(row.employeeId);
+    const reject = (message: string) => {
+      result.errors.push({ row: 0, message });
       rejected.add(row.employeeId);
-    } else if (known.get(row.employeeId) === false && (row.variablePay > 0 || row.otherDeduction > 0)) {
-      result.errors.push({ row: 0, message: `Contractor ${row.employeeId} accepts attendance only` });
-      rejected.add(row.employeeId);
+    };
+    if (!employee) reject(`Unknown employee: ${row.employeeId}`);
+    else if (!employee.inRun) reject(`${row.employeeId} is not part of this run`);
+    else if (!employee.payrollScope && (row.variablePay > 0 || row.otherDeduction > 0)) {
+      reject(`Contractor ${row.employeeId} accepts attendance only`);
     }
   }
   result.valid = result.valid.filter(row => !rejected.has(row.employeeId));
   return result;
 }
 
-export async function commitImport(db: Db, runId: string, text: string): Promise<number> {
-  const run = await getRun(db, runId);
+export async function commitImport(db: Db, organizationId: string, runId: string, text: string): Promise<number> {
+  const run = await getRun(db, organizationId, runId);
   if (run.status !== 'draft') throw conflict('Inputs are locked after calculation');
-  const { valid, errors } = await reviewImport(db, text);
+  const { valid, errors } = await reviewImport(db, organizationId, runId, text);
   if (errors.length) throw badRequest(`Import has ${errors.length} validation errors`);
+  const keys = await db
+    .select({ id: employees.id, code: employees.code })
+    .from(employees)
+    .where(
+      and(
+        eq(employees.organizationId, organizationId),
+        inArray(
+          employees.code,
+          valid.map(row => row.employeeId),
+        ),
+      ),
+    );
+  const keyByCode = new Map(keys.map(row => [row.code, row.id]));
   await db.transaction(async tx => {
     for (const row of valid) {
       await tx
-        .insert(payrollInputs)
-        .values({ runId, ...row, note: row.note ?? null })
-        .onConflictDoUpdate({
-          target: [payrollInputs.runId, payrollInputs.employeeId],
-          set: {
-            variablePay: sql`excluded.variable_pay`,
-            otherDeduction: sql`excluded.other_deduction`,
-            unpaidDays: sql`excluded.unpaid_days`,
-            workingDays: sql`excluded.working_days`,
-            note: sql`excluded.note`,
-          },
-        });
+        .update(payrollInputs)
+        .set({
+          variablePay: row.variablePay,
+          otherDeduction: row.otherDeduction,
+          unpaidDays: row.unpaidDays,
+          workingDays: row.workingDays,
+          note: row.note ?? null,
+        })
+        .where(and(eq(payrollInputs.runId, runId), eq(payrollInputs.employeeId, keyByCode.get(row.employeeId)!)));
     }
   });
   return valid.length;

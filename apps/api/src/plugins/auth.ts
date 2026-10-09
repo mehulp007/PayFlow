@@ -1,14 +1,14 @@
 import type { FastifyInstance, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
-import { can, type Permission, type User } from '@payflow/shared';
-import { sessionUser } from '../modules/auth/service.js';
+import { can, type Permission } from '@payflow/shared';
+import { sessionPrincipal, type Principal } from '../modules/auth/service.js';
 import { forbidden, HttpError, unauthorized } from '../lib/errors.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    user?: User;
+    principal?: Principal;
   }
   interface FastifyContextConfig {
-    /** No session required (health check, sign-in). */
+    /** No session required (health check, sign-in, sign-up, invitation links). */
     public?: boolean;
     /** Allowed while the account still has a temporary password. */
     allowTemporaryPassword?: boolean;
@@ -25,20 +25,23 @@ export function registerAuth(app: FastifyInstance): void {
   app.addHook('preHandler', async request => {
     const config = request.routeOptions.config;
     if (!request.url.startsWith('/api/') || config.public) return;
-    const user = await sessionUser(app.db, bearerToken(request));
-    if (!user) throw unauthorized();
-    request.user = user;
-    if (user.mustChangePassword && !config.allowTemporaryPassword) {
+    const principal = await sessionPrincipal(app.db, bearerToken(request));
+    if (!principal) throw unauthorized();
+    request.principal = principal;
+    if (principal.mustChangePassword && !config.allowTemporaryPassword) {
       throw new HttpError(403, 'Change your temporary password before continuing');
     }
   });
 }
 
-/** The signed-in user; only call from routes behind the auth hook. */
-export function currentUser(request: FastifyRequest): User {
-  if (!request.user) throw unauthorized();
-  return request.user;
+/** The signed-in account; only call from routes behind the auth hook. */
+export function currentUser(request: FastifyRequest): Principal {
+  if (!request.principal) throw unauthorized();
+  return request.principal;
 }
+
+/** The organization every query in this request is scoped to. */
+export const orgOf = (request: FastifyRequest) => currentUser(request).organizationId;
 
 export function allow(permission: Permission): preHandlerAsyncHookHandler {
   return async request => {
@@ -46,11 +49,11 @@ export function allow(permission: Permission): preHandlerAsyncHookHandler {
   };
 }
 
-/** Employees may only act on their own linked record. */
-export function assertSelfOrPermission(request: FastifyRequest, employeeId: string, permission: Permission): void {
+/** Employees may only act on their own linked record; staff need the given permission. */
+export function assertSelfOrPermission(request: FastifyRequest, employeeCode: string, permission: Permission): void {
   const user = currentUser(request);
   if (user.role === 'employee') {
-    if (user.employeeId !== employeeId) throw forbidden('Access denied');
+    if (user.employeeId !== employeeCode) throw forbidden('Access denied');
     return;
   }
   if (!can(user.role, permission)) throw forbidden();

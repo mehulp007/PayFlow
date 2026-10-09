@@ -1,0 +1,158 @@
+import { randomBytes } from 'node:crypto';
+import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import {
+  INVITATION_DAYS,
+  type CreatedInvitation,
+  type Invitation,
+  type InvitationPreview,
+  type InviteBody,
+  type LoginResult,
+  type Role,
+} from '@payflow/shared';
+import type { Db } from '../../db/client.js';
+import { appUsers, employees, invitations, organizations } from '../../db/schema.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
+import { findPrincipal, hashPassword, startSession, tokenHash, toUser } from './service.js';
+
+const columns = {
+  id: invitations.id,
+  email: invitations.email,
+  role: invitations.role,
+  employeeId: employees.code,
+  expiresAt: invitations.expiresAt,
+  acceptedAt: invitations.acceptedAt,
+  createdAt: invitations.createdAt,
+};
+const toInvitation = (row: Omit<Invitation, 'role'> & { role: string }): Invitation => ({
+  ...row,
+  role: row.role as Role,
+});
+
+export async function listInvitations(db: Db, organizationId: string): Promise<Invitation[]> {
+  const rows = await db
+    .select(columns)
+    .from(invitations)
+    .leftJoin(employees, eq(employees.id, invitations.employeeId))
+    .where(eq(invitations.organizationId, organizationId))
+    .orderBy(desc(invitations.createdAt));
+  return rows.map(toInvitation);
+}
+
+/** Creates a one-time invitation link. Email delivery is out of scope: the admin shares the link. */
+export async function createInvitation(
+  db: Db,
+  organizationId: string,
+  createdBy: string,
+  body: InviteBody,
+): Promise<CreatedInvitation> {
+  const [existing] = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.username, body.email));
+  if (existing) throw conflict('An account with this email already exists');
+  let employeeKey: string | null = null;
+  if (body.employeeId) {
+    const [employee] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(
+        and(
+          eq(employees.organizationId, organizationId),
+          eq(employees.code, body.employeeId),
+          eq(employees.employmentStatus, 'active'),
+        ),
+      );
+    if (!employee) throw badRequest('Active employee ID not found');
+    const [linked] = await db
+      .select({ id: appUsers.id })
+      .from(appUsers)
+      .where(and(eq(appUsers.employeeId, employee.id), eq(appUsers.active, true)));
+    if (linked) throw conflict('This employee already has an account');
+    employeeKey = employee.id;
+  }
+  const token = randomBytes(24).toString('base64url');
+  const [row] = await db
+    .insert(invitations)
+    .values({
+      organizationId,
+      email: body.email,
+      role: body.role,
+      employeeId: employeeKey,
+      tokenHash: tokenHash(token),
+      createdBy,
+      expiresAt: sql`now() + make_interval(days => ${INVITATION_DAYS})`,
+    })
+    .returning({ id: invitations.id });
+  const [invitation] = await db
+    .select(columns)
+    .from(invitations)
+    .leftJoin(employees, eq(employees.id, invitations.employeeId))
+    .where(eq(invitations.id, row.id));
+  return { invitation: toInvitation(invitation), token };
+}
+
+export async function revokeInvitation(db: Db, organizationId: string, id: string): Promise<void> {
+  const removed = await db
+    .delete(invitations)
+    .where(and(eq(invitations.id, id), eq(invitations.organizationId, organizationId), isNull(invitations.acceptedAt)))
+    .returning({ id: invitations.id });
+  if (!removed.length) throw notFound('Invitation not found or already accepted');
+}
+
+async function openInvitation(db: Db, token: string) {
+  const [row] = await db
+    .select({
+      id: invitations.id,
+      organizationId: invitations.organizationId,
+      organizationName: organizations.name,
+      email: invitations.email,
+      role: invitations.role,
+      employeeId: invitations.employeeId,
+    })
+    .from(invitations)
+    .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
+    .where(
+      and(
+        eq(invitations.tokenHash, tokenHash(token)),
+        isNull(invitations.acceptedAt),
+        gt(invitations.expiresAt, sql`now()`),
+      ),
+    );
+  if (!row) throw notFound('This invitation link is invalid, expired or already used');
+  return row;
+}
+
+export async function previewInvitation(db: Db, token: string): Promise<InvitationPreview> {
+  const row = await openInvitation(db, token);
+  return { organizationName: row.organizationName, email: row.email, role: row.role as Role };
+}
+
+/** The invitee chooses their own password, so no temporary password is ever shared. */
+export async function acceptInvitation(
+  db: Db,
+  token: string,
+  displayName: string,
+  password: string,
+): Promise<LoginResult & { organizationId: string }> {
+  const invitation = await openInvitation(db, token);
+  const userId = await db.transaction(async tx => {
+    const [user] = await tx
+      .insert(appUsers)
+      .values({
+        organizationId: invitation.organizationId,
+        username: invitation.email,
+        displayName,
+        role: invitation.role,
+        employeeId: invitation.employeeId,
+        passwordHash: hashPassword(password),
+      })
+      .returning({ id: appUsers.id });
+    await tx
+      .update(invitations)
+      .set({ acceptedAt: sql`now()` })
+      .where(eq(invitations.id, invitation.id));
+    return user.id;
+  });
+  return {
+    token: await startSession(db, userId),
+    user: toUser(await findPrincipal(db, userId)),
+    organizationId: invitation.organizationId,
+  };
+}
