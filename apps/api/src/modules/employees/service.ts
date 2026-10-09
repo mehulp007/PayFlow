@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gt, ilike, or, sql, type SQL } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
-import type { EmployeePayrollProfile } from '@payflow/core';
+import type { EmployeePayrollProfile, TaxDeclaration } from '@payflow/core';
 import {
   EMPLOYMENT_TYPES,
   POSITION_LEVELS,
@@ -17,9 +17,10 @@ import {
   type UpdateEmployeeBody,
 } from '@payflow/shared';
 import type { Db, Tx } from '../../db/client.js';
-import { branches, employees, payGroups, payrollInputs, salaryRevisions } from '../../db/schema.js';
+import { branches, employees, leaveBalances, payGroups, payrollInputs, salaryRevisions } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import type { Principal } from '../auth/service.js';
+import { leaveSnapshot, unpaidLeaveByEmployee } from '../leave/service.js';
 import { latestLockedPeriod, latestRun, prorationDays, type RunRow } from '../runs/service.js';
 
 export type EmployeeRow = typeof employees.$inferSelect;
@@ -42,12 +43,19 @@ type Joined = {
   unpaidDays: number | null;
 };
 
-export function toEmployee(row: Joined, run?: Pick<RunRow, 'year' | 'month'> | null): Employee {
+/** Leave facts shown with a person: approved unpaid leave in the latest run's month and this year's balances. */
+interface LeaveFacts {
+  unpaidLeave: number;
+  balance: number;
+  taken: number;
+}
+
+export function toEmployee(row: Joined, run: Pick<RunRow, 'year' | 'month'> | null, leave?: LeaveFacts): Employee {
   const e = row.employee;
   const unpaidDays =
     row.unpaidDays === null || row.workingDays === null || !run
       ? row.unpaidDays
-      : Math.min(row.workingDays, row.unpaidDays + prorationDays(e, run.year, run.month));
+      : Math.min(row.workingDays, row.unpaidDays + prorationDays(e, run.year, run.month) + (leave?.unpaidLeave ?? 0));
   return {
     id: e.code,
     name: e.name,
@@ -66,7 +74,6 @@ export function toEmployee(row: Joined, run?: Pick<RunRow, 'year' | 'month'> | n
     monthlyHra: e.monthlyHra,
     monthlySpecial: e.monthlySpecial,
     taxRegime: e.taxRegime === 'old' ? 'old' : 'new',
-    oldRegimeAnnualDeductions: e.oldRegimeAnnualDeductions,
     pfMember: e.pfMember,
     pfOnActualWages: e.pfOnActualWages,
     epsMember: e.epsMember,
@@ -81,8 +88,8 @@ export function toEmployee(row: Joined, run?: Pick<RunRow, 'year' | 'month'> | n
     phone: e.phone,
     employmentStatus: e.employmentStatus === 'exited' ? 'exited' : 'active',
     payrollScope: e.payrollScope,
-    leaveBalanceDays: e.leaveBalanceDays,
-    leaveTakenDays: e.leaveTakenDays,
+    leaveBalanceDays: leave?.balance ?? 0,
+    leaveTakenDays: leave?.taken ?? 0,
     workingDays: row.workingDays,
     unpaidDays,
   };
@@ -93,8 +100,14 @@ export function toPayrollProfile(
   row: EmployeeRow,
   place: { branch: string; state: string; payGroup: string },
   salary: { monthlyBasic: number; monthlyHra: number; monthlySpecial: number },
-  history?: { salaryPaidThisYear: number; taxAlreadyDeducted: number },
+  extra: {
+    /** Year-to-date pay and TDS from approved runs; omitted when the organization has no history. */
+    history?: { salaryPaidThisYear: number; taxAlreadyDeducted: number };
+    declaration?: TaxDeclaration | null;
+    previousGross?: number | null;
+  } = {},
 ): EmployeePayrollProfile {
+  const { history } = extra;
   return {
     id: row.code,
     name: row.name,
@@ -109,7 +122,7 @@ export function toPayrollProfile(
     bankReady: row.bankReady,
     ...salary,
     taxRegime: row.taxRegime === 'old' ? 'old' : 'new',
-    oldRegimeAnnualDeductions: row.oldRegimeAnnualDeductions,
+    declaration: extra.declaration ?? null,
     annualOtherIncome: row.annualOtherIncome,
     annualPriorEmployerTaxableSalary: row.annualPriorEmployerTaxableSalary,
     salaryPaidThisYear: history?.salaryPaidThisYear,
@@ -118,7 +131,29 @@ export function toPayrollProfile(
     pfOnActualWages: row.pfOnActualWages,
     epsMember: row.epsMember,
     esiMember: row.esiMember,
+    previousGross: extra.previousGross ?? null,
   };
+}
+
+/** Leave facts for a page of people, against the latest run's month and year. */
+async function leaveFactsFor(db: Db, organizationId: string, rows: Joined[], run: RunRow | null) {
+  const people = rows.map(row => row.employee);
+  const year = run?.year ?? new Date().getUTCFullYear();
+  const snapshot = await leaveSnapshot(db, organizationId, people, year);
+  const unpaid = run
+    ? await unpaidLeaveByEmployee(
+        db,
+        organizationId,
+        run.year,
+        run.month,
+        people.map(person => person.id),
+      )
+    : new Map<string, number>();
+  return (key: string): LeaveFacts => ({
+    unpaidLeave: unpaid.get(key) ?? 0,
+    balance: snapshot.get(key)?.balance ?? 0,
+    taken: snapshot.get(key)?.taken ?? 0,
+  });
 }
 
 function selectEmployees(db: Db, runId: string | null) {
@@ -174,7 +209,13 @@ export async function listEmployees(db: Db, organizationId: string, query: Emplo
     .orderBy(desc(employees.positionLevel), employees.code)
     .limit(query.size)
     .offset((query.page - 1) * query.size);
-  return { total, page: query.page, size: query.size, items: rows.map(row => toEmployee(row, run)) };
+  const leave = await leaveFactsFor(db, organizationId, rows, run);
+  return {
+    total,
+    page: query.page,
+    size: query.size,
+    items: rows.map(row => toEmployee(row, run, leave(row.employee.id))),
+  };
 }
 
 export async function findEmployeeRow(db: Db | Tx, organizationId: string, code: string): Promise<EmployeeRow> {
@@ -192,7 +233,8 @@ export async function getEmployee(db: Db, organizationId: string, code: string):
     and(eq(employees.organizationId, organizationId), eq(employees.code, code)),
   );
   if (!row) throw notFound('Employee not found');
-  return toEmployee(row, run);
+  const leave = await leaveFactsFor(db, organizationId, [row], run);
+  return toEmployee(row, run, leave(row.employee.id));
 }
 
 async function assertPlace(db: Db | Tx, organizationId: string, branchId?: string, payGroupId?: string) {
@@ -264,6 +306,11 @@ export async function createEmployee(
     : { monthlyBasic: 0, monthlyHra: 0, monthlySpecial: 0 };
   const pfMember = payrollScope && body.pfMember;
   const wages = salary.monthlyBasic + salary.monthlySpecial;
+  // Carried-forward earned leave opens the current leave year (or the joining year, if later).
+  const leaveYear = Math.max(
+    Number(body.joinDate.slice(0, 4)),
+    (await latestRun(db, organizationId))?.year ?? new Date().getUTCFullYear(),
+  );
   return db.transaction(async tx => {
     const code = await nextEmployeeCode(tx, organizationId);
     const [created] = await tx
@@ -289,9 +336,16 @@ export async function createEmployee(
         workEmail: body.workEmail,
         phone: body.phone,
         payrollScope,
-        leaveBalanceDays: body.leaveBalanceDays,
       })
       .returning({ id: employees.id });
+    if (body.carriedForwardLeave) {
+      await tx.insert(leaveBalances).values({
+        organizationId,
+        employeeId: created.id,
+        year: leaveYear,
+        carriedForward: body.carriedForwardLeave,
+      });
+    }
     if (payrollScope) {
       await tx.insert(salaryRevisions).values({
         organizationId,

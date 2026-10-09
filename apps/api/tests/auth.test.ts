@@ -13,7 +13,7 @@ describe('sessions', () => {
   test('protected routes need a session; health does not', async () => {
     expect((await ctx.call(null, 'GET', '/api/bootstrap')).status).toBe(401);
     expect((await ctx.call('not-a-token', 'GET', '/api/bootstrap')).status).toBe(401);
-    expect((await ctx.call(null, 'GET', '/api/health')).body.ruleVersion).toMatch(/^IN-TY2026-27-v2/);
+    expect((await ctx.call(null, 'GET', '/api/health')).body.ruleVersion).toMatch(/^IN-TY2026-27-v3/);
   });
 
   test('wrong passwords are rejected and repeated failures lock the account', async () => {
@@ -66,6 +66,7 @@ describe('invitations', () => {
       organizationName: 'Aster Group',
       email: 'sneha.iyer@example.com',
       role: 'employee',
+      existingAccount: false,
     });
     expect(
       (await ctx.call(null, 'POST', '/api/invitations/accept', { token, displayName: 'Sneha', password: 'short' }))

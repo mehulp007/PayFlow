@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { acceptInviteBody, changePasswordBody, inviteBody, loginBody } from '@payflow/shared';
+import { acceptInviteBody, changePasswordBody, inviteBody, loginBody, switchOrganizationBody } from '@payflow/shared';
 import { audit, recordAudit } from '../../lib/audit.js';
 import { badRequest, validate } from '../../lib/errors.js';
 import { allow, bearerToken, currentUser, orgOf } from '../../plugins/auth.js';
@@ -35,9 +35,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/api/auth/change-password', { config: { allowTemporaryPassword: true } }, async request => {
     const body = validate(changePasswordBody, request.body);
-    await auth.changePassword(db, currentUser(request).id, body.currentPassword, body.newPassword);
+    await auth.changePassword(db, currentUser(request), body.currentPassword, body.newPassword);
     await audit(db, request, 'auth.password.changed');
     return { ok: true };
+  });
+
+  /** People who belong to several organizations move their session between them. */
+  app.post('/api/auth/switch-organization', async request => {
+    const { organizationId } = validate(switchOrganizationBody, request.body);
+    const result = await auth.switchOrganization(db, currentUser(request), bearerToken(request), organizationId);
+    await recordAudit(db, { organizationId, actor: result.user.username, action: 'auth.organization.switched' });
+    return result;
   });
 
   // Accounts in the signed-in organization

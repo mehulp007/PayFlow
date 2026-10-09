@@ -97,9 +97,18 @@ describe('payroll run lifecycle', () => {
     expect((await ctx.call(tokens.payroll, 'POST', `${run}/calculate`)).body.blocking).toBe(0);
     expect((await ctx.call(tokens.finance, 'POST', `${run}/submit`)).status).toBe(403);
     expect((await ctx.call(tokens.payroll, 'POST', `${run}/submit`)).body.status).toBe('approval_pending');
+    expect((await ctx.call(tokens.finance, 'GET', '/api/notifications')).body.items[0]).toMatchObject({
+      kind: 'run.submitted',
+      title: 'October 2026 payroll is ready for approval',
+      link: run.replace('/api/runs', '/payroll'),
+    });
     expect((await ctx.call(tokens.finance, 'POST', `${run}/reject`, { note: '' })).status).toBe(400);
     const rejected = await ctx.call(tokens.finance, 'POST', `${run}/reject`, { note: 'Check the bonus for EMP00001' });
     expect(rejected.body).toMatchObject({ status: 'calculated', rejectionNote: 'Check the bonus for EMP00001' });
+    expect((await ctx.call(tokens.hr, 'GET', '/api/notifications')).body.items[0]).toMatchObject({
+      kind: 'run.sent_back',
+      body: 'Check the bonus for EMP00001',
+    });
     expect((await ctx.call(tokens.payroll, 'POST', `${run}/submit`)).body).toMatchObject({
       status: 'approval_pending',
       rejectionNote: null,
@@ -128,6 +137,17 @@ describe('payroll run lifecycle', () => {
     expect(payslip.body.line.variablePay).toBe(250000);
     expect((await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00002`)).status).toBe(403);
     expect((await ctx.call(tokens.employee, 'GET', '/api/me/payslips')).body).toHaveLength(1);
+    expect((await ctx.call(tokens.employee, 'GET', '/api/notifications')).body.items[0]).toMatchObject({
+      kind: 'payslip.ready',
+      title: 'Your October 2026 payslip is ready',
+    });
+
+    const pdf = await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00001/pdf`);
+    expect(pdf.status).toBe(200);
+    expect(pdf.text.startsWith('%PDF')).toBe(true);
+    expect((await ctx.call(tokens.employee, 'GET', `${run}/payslip/EMP00002/pdf`)).status).toBe(403);
+    expect((await ctx.call(tokens.auditor, 'GET', '/api/employees/EMP00001/payslips')).body).toHaveLength(1);
+    expect((await ctx.call(tokens.employee, 'GET', '/api/employees/EMP00002/payslips')).status).toBe(403);
 
     const bank = await ctx.call(tokens.finance, 'GET', `${run}/export/bank-demo`);
     expect(bank.text.startsWith('"DEMO ONLY - NOT A BANK UPLOAD FILE"')).toBe(true);

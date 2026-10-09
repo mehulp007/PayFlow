@@ -11,7 +11,7 @@ export interface Response<T = any> {
   body: T;
   text: string;
 }
-export type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+export type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export interface TestContext {
   app: FastifyInstance;
   database: Database;

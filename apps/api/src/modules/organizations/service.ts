@@ -1,5 +1,5 @@
 import { writeFile } from 'node:fs/promises';
-import { and, asc, eq, inArray, isNotNull, ne, or } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, ne, or } from 'drizzle-orm';
 import { RULE_VERSION, REVIEWED_TAX_YEAR, STATE_RULE_SUMMARIES } from '@payflow/core';
 import {
   can,
@@ -15,19 +15,34 @@ import type { Db, Tx } from '../../db/client.js';
 import {
   appMeta,
   appUsers,
-  authSessions,
   branches,
   employees,
   invitations,
+  leaveBalances,
+  leaveRequests,
+  notifications,
   organizations,
   payGroups,
   payrollInputs,
   payrollLines,
   payrollRuns,
   salaryRevisions,
+  taxDeclarations,
 } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
-import { findPrincipal, hashPassword, randomPassword, startSession, toUser, type Principal } from '../auth/service.js';
+import {
+  addMembership,
+  createAccount,
+  deleteMemberships,
+  findIdentity,
+  findPrincipal,
+  organizationsOf,
+  passwordMatches,
+  randomPassword,
+  startSession,
+  toUser,
+  type Principal,
+} from '../auth/service.js';
 import { latestRun, summarize, toPeriod } from '../runs/service.js';
 import { seedSampleCompany } from './sample.js';
 
@@ -94,26 +109,28 @@ async function createSampleAccounts(
 ) {
   const ids = new Map<Role, string>();
   for (const role of roles) {
-    const [user] = await db
-      .insert(appUsers)
-      .values({
-        organizationId,
-        username: usernameFor(role),
-        displayName,
-        role,
-        passwordHash: hashPassword(passwords?.get(role) ?? randomPassword()),
-        builtIn: true,
-      })
-      .returning({ id: appUsers.id });
-    ids.set(role, user.id);
+    const id = await createAccount(db, {
+      organizationId,
+      username: usernameFor(role),
+      displayName,
+      password: passwords?.get(role) ?? randomPassword(),
+      role,
+      builtIn: true,
+    });
+    ids.set(role, id);
   }
   return ids;
 }
 
-/** Self-service sign-up: an organization, its first admin, and optionally a ready-made sample company. */
+/**
+ * Self-service sign-up: an organization, its first admin, and optionally a ready-made sample company. Someone
+ * who already uses PayFlow signs up with their existing password and gets one more organization.
+ */
 export async function signup(db: Db, body: SignupBody & { payGroups: string[] }): Promise<SignupResult> {
-  const [taken] = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.username, body.email));
-  if (taken) throw conflict('An account with this email already exists');
+  const identity = await findIdentity(db, body.email);
+  if (identity && !passwordMatches(body.password, identity.passwordHash)) {
+    throw conflict('This email already has a PayFlow account. Use its password to add another organization.');
+  }
   const sample = body.start === 'sample';
   const organization = await createOrganization(
     db,
@@ -126,21 +143,20 @@ export async function signup(db: Db, body: SignupBody & { payGroups: string[] })
     body.branches,
     body.payGroups,
   );
-  const [owner] = await db
-    .insert(appUsers)
-    .values({
-      organizationId: organization.id,
-      username: body.email,
-      displayName: body.adminName,
-      role: 'admin',
-      passwordHash: hashPassword(body.password),
-    })
-    .returning({ id: appUsers.id });
-  await db.update(organizations).set({ ownerUserId: owner.id }).where(eq(organizations.id, organization.id));
+  const owner = identity
+    ? await addMembership(db, { organizationId: organization.id, identityId: identity.id, role: 'admin' })
+    : await createAccount(db, {
+        organizationId: organization.id,
+        username: body.email,
+        displayName: body.adminName,
+        password: body.password,
+        role: 'admin',
+      });
+  await db.update(organizations).set({ ownerUserId: owner }).where(eq(organizations.id, organization.id));
   if (sample) await populateSample(db, organization.id, { size: SAMPLE_COMPANY_SIZE, history: true });
   return {
-    token: await startSession(db, owner.id),
-    user: toUser(await findPrincipal(db, owner.id)),
+    token: await startSession(db, owner),
+    user: toUser(await findPrincipal(db, owner)),
     organization: publicOrganization(await getOrganization(db, organization.id)),
   };
 }
@@ -206,6 +222,7 @@ export async function bootstrap(db: Db, principal: Principal): Promise<Bootstrap
     organization: publicOrganization(organization),
     currentRun: run ? (can(principal.role, 'runs.read') ? await summarize(db, run) : await toPeriod(db, run)) : null,
     viewAsRoles: await viewAsRoles(db, principal, organization.row),
+    organizations: await organizationsOf(db, principal.identityId),
   };
 }
 
@@ -275,11 +292,11 @@ export async function resetSample(db: Db, organizationId: string): Promise<void>
           keep.length ? ne(appUsers.id, keep[0]) : undefined,
         ),
       );
-    const removableIds = removable.map(user => user.id);
-    if (removableIds.length) {
-      await tx.delete(authSessions).where(inArray(authSessions.userId, removableIds));
-      await tx.delete(appUsers).where(inArray(appUsers.id, removableIds));
-    }
+    await deleteMemberships(
+      tx,
+      removable.map(user => user.id),
+    );
+    await tx.delete(notifications).where(eq(notifications.organizationId, organizationId));
     await tx
       .update(appUsers)
       .set({ employeeId: null })
@@ -289,6 +306,9 @@ export async function resetSample(db: Db, organizationId: string): Promise<void>
     await tx.delete(payrollInputs).where(eq(payrollInputs.organizationId, organizationId));
     await tx.delete(payrollRuns).where(eq(payrollRuns.organizationId, organizationId));
     await tx.delete(salaryRevisions).where(eq(salaryRevisions.organizationId, organizationId));
+    await tx.delete(leaveRequests).where(eq(leaveRequests.organizationId, organizationId));
+    await tx.delete(leaveBalances).where(eq(leaveBalances.organizationId, organizationId));
+    await tx.delete(taxDeclarations).where(eq(taxDeclarations.organizationId, organizationId));
     await tx.delete(employees).where(eq(employees.organizationId, organizationId));
   });
   await populateSample(db, organizationId, {

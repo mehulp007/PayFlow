@@ -4,10 +4,14 @@ import rateLimit from '@fastify/rate-limit';
 import { RULE_VERSION } from '@payflow/core';
 import type { Db } from './db/client.js';
 import { HttpError } from './lib/errors.js';
+import { analyticsRoutes } from './modules/analytics/routes.js';
 import { authRoutes } from './modules/auth/routes.js';
 import { employeeRoutes } from './modules/employees/routes.js';
+import { leaveRoutes } from './modules/leave/routes.js';
 import { organizationRoutes } from './modules/organizations/routes.js';
 import { runRoutes } from './modules/runs/routes.js';
+import { taxRoutes } from './modules/tax/routes.js';
+import { workspaceRoutes } from './modules/workspace/routes.js';
 import { registerAuth } from './plugins/auth.js';
 
 declare module 'fastify' {
@@ -55,5 +59,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(organizationRoutes);
   await app.register(employeeRoutes);
   await app.register(runRoutes);
+  await app.register(leaveRoutes);
+  await app.register(taxRoutes);
+  await app.register(analyticsRoutes);
+  await app.register(workspaceRoutes);
   return app;
 }

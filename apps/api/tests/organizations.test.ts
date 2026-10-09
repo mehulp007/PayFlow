@@ -29,7 +29,8 @@ describe('sign-up', () => {
     expect((await signup({ branches: [{ name: 'Panaji', state: 'Goa' }] })).body.error).toMatch(/reviewed rule pack/);
     expect((await signup({ branches: [] })).status).toBe(400);
     expect((await signup({ password: 'short' })).status).toBe(400);
-    expect((await signup({ email: 'neem.foods@example.com' })).status).toBe(409);
+    // An existing account adds an organization only with its own password.
+    expect((await signup({ email: 'neem.foods@example.com', password: 'Another-Password-2026' })).status).toBe(409);
   });
 
   test('a sample company comes with six approved months and an open October run', async () => {

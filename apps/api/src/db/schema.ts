@@ -1,4 +1,4 @@
-import type { PayrollLine } from '@payflow/core';
+import type { PayrollLine, TaxDeclaration } from '@payflow/core';
 import { sql } from 'drizzle-orm';
 import {
   bigint,
@@ -77,7 +77,6 @@ export const employees = pgTable(
     monthlyHra: money('monthly_hra').notNull(),
     monthlySpecial: money('monthly_special').notNull(),
     taxRegime: text('tax_regime').notNull().default('new'),
-    oldRegimeAnnualDeductions: money('old_regime_annual_deductions').notNull().default(0),
     annualOtherIncome: money('annual_other_income').notNull().default(0),
     annualPriorEmployerTaxableSalary: money('annual_prior_employer_taxable_salary').notNull().default(0),
     pfMember: boolean('pf_member').notNull().default(true),
@@ -93,8 +92,6 @@ export const employees = pgTable(
     phone: text('phone'),
     employmentStatus: text('employment_status').notNull().default('active'),
     payrollScope: boolean('payroll_scope').notNull().default(true),
-    leaveBalanceDays: integer('leave_balance_days').notNull().default(0),
-    leaveTakenDays: integer('leave_taken_days').notNull().default(0),
   },
   table => [
     uniqueIndex('employees_code_unique').on(table.organizationId, table.code),
@@ -210,24 +207,35 @@ export const auditEvents = pgTable(
   table => [index('audit_events_org_idx').on(table.organizationId, table.runId)],
 );
 
+/** A person who signs in. One identity can belong to several organizations through memberships. */
+export const identities = pgTable('identities', {
+  id: id(),
+  /** Sign-in identifier, unique across the service: an email address or a built-in demo username. */
+  username: text('username').notNull().unique(),
+  displayName: text('display_name'),
+  passwordHash: text('password_hash').notNull(),
+  mustChangePassword: boolean('must_change_password').notNull().default(false),
+  createdAt: createdAt(),
+});
+
+/** Membership of an identity in one organization, with its role there. Sessions belong to a membership. */
 export const appUsers = pgTable(
   'app_users',
   {
     id: id(),
     organizationId: organizationId(),
-    /** Sign-in identifier, unique across the service: an email address or a built-in demo username. */
-    username: text('username').notNull().unique(),
-    displayName: text('display_name'),
+    identityId: uuid('identity_id')
+      .notNull()
+      .references(() => identities.id),
     role: text('role').notNull(),
     employeeId: uuid('employee_id').references(() => employees.id),
-    passwordHash: text('password_hash').notNull(),
     active: boolean('active').notNull().default(true),
-    mustChangePassword: boolean('must_change_password').notNull().default(false),
     /** Generated with a sample company; cannot be removed and is reachable through "View as". */
     builtIn: boolean('built_in').notNull().default(false),
     createdAt: createdAt(),
   },
   table => [
+    uniqueIndex('app_users_membership_unique').on(table.organizationId, table.identityId),
     uniqueIndex('one_active_employee_account')
       .on(table.employeeId)
       .where(sql`${table.role} = 'employee' AND ${table.active} = true AND ${table.employeeId} IS NOT NULL`),
@@ -262,6 +270,85 @@ export const invitations = pgTable(
     createdAt: createdAt(),
   },
   table => [index('invitations_org_idx').on(table.organizationId)],
+);
+
+/** An employee's tax declaration for one tax year (Form 124), used for old-regime TDS. */
+export const taxDeclarations = pgTable(
+  'tax_declarations',
+  {
+    id: id(),
+    organizationId: organizationId(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id),
+    /** Calendar year the tax year starts in: 2026 for April 2026 – March 2027. */
+    taxYear: integer('tax_year').notNull(),
+    data: jsonb('data').$type<TaxDeclaration & { landlordRelation: string | null }>().notNull(),
+    status: text('status').notNull().default('submitted'),
+    submittedAt: timestamptz('submitted_at').notNull().defaultNow(),
+    verifiedBy: text('verified_by'),
+    verifiedAt: timestamptz('verified_at'),
+  },
+  table => [uniqueIndex('tax_declarations_year_unique').on(table.employeeId, table.taxYear)],
+);
+
+export const leaveRequests = pgTable(
+  'leave_requests',
+  {
+    id: id(),
+    organizationId: organizationId(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id),
+    type: text('type').notNull(),
+    fromDate: date('from_date', { mode: 'string' }).notNull(),
+    toDate: date('to_date', { mode: 'string' }).notNull(),
+    /** Leave days in the request, not counting Sundays. */
+    days: integer('days').notNull(),
+    reason: text('reason'),
+    status: text('status').notNull().default('pending'),
+    decidedBy: text('decided_by'),
+    decidedAt: timestamptz('decided_at'),
+    decisionNote: text('decision_note'),
+    createdAt: createdAt(),
+  },
+  table => [
+    index('leave_requests_org_idx').on(table.organizationId, table.status),
+    index('leave_requests_employee_idx').on(table.employeeId, table.fromDate),
+  ],
+);
+
+/** Earned leave carried forward into a calendar year (at most 30 days). */
+export const leaveBalances = pgTable(
+  'leave_balances',
+  {
+    organizationId: organizationId(),
+    employeeId: uuid('employee_id')
+      .notNull()
+      .references(() => employees.id),
+    year: integer('year').notNull(),
+    carriedForward: integer('carried_forward').notNull().default(0),
+  },
+  table => [primaryKey({ columns: [table.employeeId, table.year] })],
+);
+
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    organizationId: organizationId(),
+    /** The membership the notification is for. */
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => appUsers.id),
+    kind: text('kind').notNull(),
+    title: text('title').notNull(),
+    body: text('body'),
+    link: text('link'),
+    readAt: timestamptz('read_at'),
+    createdAt: createdAt(),
+  },
+  table => [index('notifications_user_idx').on(table.userId, table.id)],
 );
 
 /** Key-value facts about this installation, such as whether the built-in demo tenant was created. */

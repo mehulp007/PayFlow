@@ -22,9 +22,11 @@ import {
   payrollLines,
   payrollRuns,
   salaryRevisions,
+  taxDeclarations,
 } from '../../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { toPayrollProfile, type EmployeeRow } from '../employees/service.js';
+import { unpaidLeaveByEmployee } from '../leave/service.js';
 
 export type RunRow = typeof payrollRuns.$inferSelect & { status: RunStatus };
 const INSERT_CHUNK = 250;
@@ -32,7 +34,7 @@ const ALL_PAY_GROUPS = 'All pay groups';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Tax year (April–March) of a pay month, as the calendar year it starts in. */
-const taxYearStart = (year: number, month: number) => (month >= 4 ? year : year - 1);
+export const taxYearStart = (year: number, month: number) => (month >= 4 ? year : year - 1);
 const periodKey = (year: number, month: number) => year * 12 + month;
 
 export async function getRun(db: Db | Tx, organizationId: string, id: string): Promise<RunRow> {
@@ -247,7 +249,7 @@ export async function refreshOpenRuns(db: Db, organizationId: string): Promise<v
 }
 
 /** Salary paid and TDS deducted earlier in the tax year, from runs Finance approved. */
-async function yearToDate(db: Db | Tx, run: RunRow) {
+export async function yearToDate(db: Db | Tx, run: Pick<RunRow, 'organizationId' | 'year' | 'month'>) {
   const startYear = taxYearStart(run.year, run.month);
   const runKey = sql`${payrollRuns.year} * 12 + ${payrollRuns.month}`;
   const approvedEarlier = and(
@@ -276,9 +278,42 @@ async function yearToDate(db: Db | Tx, run: RunRow) {
   );
 }
 
+/** Gross pay per employee in the previous month's approved runs, for the month-over-month check. */
+async function previousMonthGross(db: Db | Tx, run: RunRow): Promise<Map<string, number>> {
+  const previous = run.month === 1 ? { year: run.year - 1, month: 12 } : { year: run.year, month: run.month - 1 };
+  const rows = await db
+    .select({ employeeId: payrollLines.employeeId, gross: payrollLines.gross })
+    .from(payrollLines)
+    .innerJoin(payrollRuns, eq(payrollRuns.id, payrollLines.runId))
+    .where(
+      and(
+        eq(payrollRuns.organizationId, run.organizationId),
+        eq(payrollRuns.year, previous.year),
+        eq(payrollRuns.month, previous.month),
+        inArray(payrollRuns.status, [...APPROVED_STATUSES]),
+      ),
+    );
+  return new Map(rows.map(row => [row.employeeId, row.gross]));
+}
+
+/** Declarations (Form 124) for the run's tax year, per employee key. */
+export async function declarationsFor(db: Db | Tx, organizationId: string, taxYear: number, employeeKeys?: string[]) {
+  const rows = await db
+    .select({ employeeId: taxDeclarations.employeeId, data: taxDeclarations.data })
+    .from(taxDeclarations)
+    .where(
+      and(
+        eq(taxDeclarations.organizationId, organizationId),
+        eq(taxDeclarations.taxYear, taxYear),
+        employeeKeys ? inArray(taxDeclarations.employeeId, employeeKeys) : undefined,
+      ),
+    );
+  return new Map(rows.map(row => [row.employeeId, row.data]));
+}
+
 type Revision = typeof salaryRevisions.$inferSelect;
 /** The salary revision in force on the first day of the period, falling back to the current salary. */
-function salaryFor(employee: EmployeeRow, revisions: Revision[], periodStart: string) {
+export function salaryFor(employee: EmployeeRow, revisions: Revision[], periodStart: string) {
   const inForce = revisions.filter(revision => revision.effectiveFrom <= periodStart).at(-1);
   const source = inForce ?? employee;
   return { monthlyBasic: source.monthlyBasic, monthlyHra: source.monthlyHra, monthlySpecial: source.monthlySpecial };
@@ -317,28 +352,44 @@ export async function calculateRun(db: Db, organizationId: string, runId: string
     revisionsByEmployee.set(revision.employeeId, list);
   }
   const history = await yearToDate(db, run);
+  const declarations = await declarationsFor(db, organizationId, taxYearStart(run.year, run.month));
+  const unpaidLeave = await unpaidLeaveByEmployee(db, organizationId, run.year, run.month);
+  const previousGross = await previousMonthGross(db, run);
   const periodStart = monthStart(run.year, run.month);
   const period = { year: run.year, month: run.month, paymentDate: run.paymentDate };
-  const results = rows.map(({ employee, input, branch, state, payGroup }) => ({
-    employeeKey: employee.id,
-    line: calculatePayroll(
-      toPayrollProfile(
-        employee,
-        { branch, state, payGroup },
-        salaryFor(employee, revisionsByEmployee.get(employee.id) ?? [], periodStart),
-        history ? (history.get(employee.id) ?? { salaryPaidThisYear: 0, taxAlreadyDeducted: 0 }) : undefined,
+  const results = rows.map(({ employee, input, branch, state, payGroup }) => {
+    const leaveDays = unpaidLeave.get(employee.id) ?? 0;
+    return {
+      employeeKey: employee.id,
+      line: calculatePayroll(
+        toPayrollProfile(
+          employee,
+          { branch, state, payGroup },
+          salaryFor(employee, revisionsByEmployee.get(employee.id) ?? [], periodStart),
+          {
+            history: history
+              ? (history.get(employee.id) ?? { salaryPaidThisYear: 0, taxAlreadyDeducted: 0 })
+              : undefined,
+            declaration: declarations.get(employee.id),
+            previousGross: previousGross.get(employee.id),
+          },
+        ),
+        {
+          employeeId: employee.code,
+          variablePay: input.variablePay,
+          otherDeduction: input.otherDeduction,
+          unpaidDays: Math.min(
+            input.workingDays,
+            input.unpaidDays + prorationDays(employee, run.year, run.month) + leaveDays,
+          ),
+          unpaidLeaveDays: leaveDays,
+          workingDays: input.workingDays,
+          note: input.note ?? undefined,
+        },
+        period,
       ),
-      {
-        employeeId: employee.code,
-        variablePay: input.variablePay,
-        otherDeduction: input.otherDeduction,
-        unpaidDays: Math.min(input.workingDays, input.unpaidDays + prorationDays(employee, run.year, run.month)),
-        workingDays: input.workingDays,
-        note: input.note ?? undefined,
-      },
-      period,
-    ),
-  }));
+    };
+  });
   await db.transaction(async tx => {
     await tx.delete(payrollLines).where(eq(payrollLines.runId, runId));
     for (let offset = 0; offset < results.length; offset += INSERT_CHUNK) {
@@ -537,4 +588,13 @@ export async function linesForExport(db: Db, organizationId: string, runId: stri
     .where(eq(payrollLines.runId, runId))
     .orderBy(employees.code);
   return rows.map(row => row.result);
+}
+
+/** Employee keys with a line in the run. */
+export async function lineEmployeeKeys(db: Db | Tx, runId: string): Promise<string[]> {
+  const rows = await db
+    .select({ employeeId: payrollLines.employeeId })
+    .from(payrollLines)
+    .where(eq(payrollLines.runId, runId));
+  return rows.map(row => row.employeeId);
 }

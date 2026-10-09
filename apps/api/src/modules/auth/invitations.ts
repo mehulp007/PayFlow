@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
 import {
   INVITATION_DAYS,
+  passwordSchema,
   type CreatedInvitation,
   type Invitation,
   type InvitationPreview,
@@ -10,9 +11,18 @@ import {
   type Role,
 } from '@payflow/shared';
 import type { Db } from '../../db/client.js';
-import { appUsers, employees, invitations, organizations } from '../../db/schema.js';
-import { badRequest, conflict, notFound } from '../../lib/errors.js';
-import { findPrincipal, hashPassword, startSession, tokenHash, toUser } from './service.js';
+import { appUsers, employees, identities, invitations, organizations } from '../../db/schema.js';
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import {
+  addMembership,
+  createAccount,
+  findIdentity,
+  findPrincipal,
+  passwordMatches,
+  startSession,
+  tokenHash,
+  toUser,
+} from './service.js';
 
 const columns = {
   id: invitations.id,
@@ -45,8 +55,12 @@ export async function createInvitation(
   createdBy: string,
   body: InviteBody,
 ): Promise<CreatedInvitation> {
-  const [existing] = await db.select({ id: appUsers.id }).from(appUsers).where(eq(appUsers.username, body.email));
-  if (existing) throw conflict('An account with this email already exists');
+  const [member] = await db
+    .select({ id: appUsers.id })
+    .from(appUsers)
+    .innerJoin(identities, eq(identities.id, appUsers.identityId))
+    .where(and(eq(identities.username, body.email), eq(appUsers.organizationId, organizationId)));
+  if (member) throw conflict('This person is already a member of the organization');
   let employeeKey: string | null = null;
   if (body.employeeId) {
     const [employee] = await db
@@ -121,34 +135,48 @@ async function openInvitation(db: Db, token: string) {
 
 export async function previewInvitation(db: Db, token: string): Promise<InvitationPreview> {
   const row = await openInvitation(db, token);
-  return { organizationName: row.organizationName, email: row.email, role: row.role as Role };
+  return {
+    organizationName: row.organizationName,
+    email: row.email,
+    role: row.role as Role,
+    existingAccount: Boolean(await findIdentity(db, row.email)),
+  };
 }
 
-/** The invitee chooses their own password, so no temporary password is ever shared. */
+/**
+ * New people choose their own name and password, so no temporary password is ever shared. Someone who already
+ * uses PayFlow confirms their existing password and gains a membership in the inviting organization.
+ */
 export async function acceptInvitation(
   db: Db,
   token: string,
-  displayName: string,
+  displayName: string | undefined,
   password: string,
 ): Promise<LoginResult & { organizationId: string }> {
   const invitation = await openInvitation(db, token);
+  const identity = await findIdentity(db, invitation.email);
+  if (identity && !passwordMatches(password, identity.passwordHash)) {
+    throw forbidden('Enter the password of your existing PayFlow account');
+  }
+  if (!identity) {
+    if (!displayName) throw badRequest('Enter your name');
+    const strength = passwordSchema.safeParse(password);
+    if (!strength.success) throw badRequest(strength.error.issues[0].message);
+  }
   const userId = await db.transaction(async tx => {
-    const [user] = await tx
-      .insert(appUsers)
-      .values({
-        organizationId: invitation.organizationId,
-        username: invitation.email,
-        displayName,
-        role: invitation.role,
-        employeeId: invitation.employeeId,
-        passwordHash: hashPassword(password),
-      })
-      .returning({ id: appUsers.id });
+    const membership = {
+      organizationId: invitation.organizationId,
+      role: invitation.role as Role,
+      employeeId: invitation.employeeId,
+    };
+    const id = identity
+      ? await addMembership(tx, { ...membership, identityId: identity.id })
+      : await createAccount(tx, { ...membership, username: invitation.email, displayName: displayName!, password });
     await tx
       .update(invitations)
       .set({ acceptedAt: sql`now()` })
       .where(eq(invitations.id, invitation.id));
-    return user.id;
+    return id;
   });
   return {
     token: await startSession(db, userId),

@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { POSITION_LEVELS, type Branch, type EmploymentType, type PayGroup } from '@payflow/shared';
+import { leaveDays } from '@payflow/core';
+import { POSITION_LEVELS, type Branch, type EmploymentType, type LeaveType, type PayGroup } from '@payflow/shared';
 import type { Db } from '../../db/client.js';
-import { employees, salaryRevisions } from '../../db/schema.js';
+import { employees, leaveBalances, leaveRequests, salaryRevisions, taxDeclarations } from '../../db/schema.js';
 import { EPS_WAGE_LIMIT, ESI_WAGE_LIMIT } from '../employees/service.js';
 import { approveRun, calculateRun, closeRun, createRun, markPaid, submitRun } from '../runs/service.js';
 
@@ -170,6 +171,82 @@ function salaryOf(n: number, level: number, type: EmploymentType) {
   };
 }
 
+const SAMPLE_DECIDER = 'Sample HR';
+
+/**
+ * A year of leave for one person: carried-forward earned leave, approved leave in past months (unpaid leave in
+ * July is deducted in July's run), and October requests: some approved, some waiting for HR.
+ */
+function sampleLeave(
+  n: number,
+  employeeId: string,
+  joinDate: string,
+  organizationId: string,
+  leave: Array<typeof leaveRequests.$inferInsert>,
+  balances: Array<typeof leaveBalances.$inferInsert>,
+) {
+  if (joinDate < '2025-01-01' && n % 4) {
+    balances.push({ organizationId, employeeId, year: 2026, carriedForward: (n % 4) * 5 });
+  }
+  const add = (type: LeaveType, from: string, to: string, status: 'approved' | 'pending', reason: string) => {
+    if (from < joinDate) return;
+    leave.push({
+      organizationId,
+      employeeId,
+      type,
+      fromDate: from,
+      toDate: to,
+      days: leaveDays(from, to),
+      reason,
+      status,
+      decidedBy: status === 'approved' ? SAMPLE_DECIDER : null,
+      decidedAt: status === 'approved' ? `${from}T09:00:00Z` : null,
+    });
+  };
+  // Earned leave needs 180 days worked in 2025 (OSH Code s. 32).
+  const earnedLeave = joinDate < '2025-06-01';
+  if (n === 1) add('earned', '2026-05-11', '2026-05-12', 'approved', 'Family function');
+  if (earnedLeave && n % 5 === 1 && n > 1) add('earned', '2026-06-08', '2026-06-10', 'approved', 'Vacation');
+  if (n % 7 === 3) add('sick', '2026-08-17', '2026-08-18', 'approved', 'Fever');
+  if (n % 23 === 5) add('unpaid', '2026-07-13', '2026-07-14', 'approved', 'Personal work');
+  if (n % 29 === 7) add('unpaid', '2026-10-12', '2026-10-13', 'approved', 'Travel home');
+  if (earnedLeave && n % 31 === 2) add('earned', '2026-10-19', '2026-10-21', 'pending', 'Diwali with family');
+  if (n % 37 === 11) add('unpaid', '2026-10-26', '2026-10-27', 'pending', 'Moving house');
+}
+
+/** An old-regime declaration (Form 124): savings for everyone, rent and health cover for some. */
+function sampleDeclaration(
+  n: number,
+  employeeId: string,
+  organizationId: string,
+  monthlyHraRupees: number,
+  branch: Branch,
+): typeof taxDeclarations.$inferInsert {
+  const rents = n % 12 === 0;
+  const monthlyRent = rents ? roundHundred(monthlyHraRupees * 1.1) * 100 : 0;
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  return {
+    organizationId,
+    employeeId,
+    taxYear: 2026,
+    data: {
+      monthlyRent,
+      rentCity: rents ? branch.name : null,
+      landlordPan: monthlyRent * 12 > 100000_00 ? `AFKP${letters[n % 24]}${String(1000 + (n % 9000))}Z` : null,
+      landlordRelation: null,
+      section123: (n % 12 === 0 ? 150000 : 90000) * 100,
+      npsAdditional: n % 24 === 0 ? 50000_00 : 0,
+      healthSelf: n % 18 === 0 ? 25000_00 : 0,
+      healthParents: n % 36 === 0 ? 50000_00 : 0,
+      parentsSenior: n % 36 === 0,
+      homeLoanInterest: 0,
+    },
+    status: n % 30 === 0 ? 'submitted' : 'verified',
+    verifiedBy: n % 30 === 0 ? null : SAMPLE_DECIDER,
+    verifiedAt: n % 30 === 0 ? null : '2026-05-15T09:00:00Z',
+  };
+}
+
 export interface SampleOptions {
   size: number;
   history: boolean;
@@ -188,6 +265,9 @@ export async function seedSampleCompany(db: Db, organizationId: string, options:
   const firstNewJoiner = options.size - SAMPLE_NEW_JOINERS + 1;
   const people: Array<typeof employees.$inferInsert> = [];
   const revisions: Array<typeof salaryRevisions.$inferInsert> = [];
+  const leave: Array<typeof leaveRequests.$inferInsert> = [];
+  const balances: Array<typeof leaveBalances.$inferInsert> = [];
+  const declarations: Array<typeof taxDeclarations.$inferInsert> = [];
 
   for (let n = 1; n <= options.size; n++) {
     const level = levelOf(n);
@@ -220,7 +300,6 @@ export async function seedSampleCompany(db: Db, organizationId: string, options:
       monthlyHra: pay.hra * 100,
       monthlySpecial: pay.special * 100,
       taxRegime: n % 6 === 0 ? 'old' : 'new',
-      oldRegimeAnnualDeductions: n % 6 === 0 ? 150000_00 : 0,
       pfMember: inPayroll,
       epsMember: inPayroll && wages <= EPS_WAGE_LIMIT,
       esiMember: inPayroll && wages <= ESI_WAGE_LIMIT,
@@ -231,10 +310,14 @@ export async function seedSampleCompany(db: Db, organizationId: string, options:
       managerId: managerNumber ? keys.get(managerNumber)! : null,
       workEmail: `emp${String(n).padStart(5, '0')}@${options.emailDomain}`,
       payrollScope: inPayroll,
-      leaveBalanceDays: type === 'contractor' || type === 'casual' ? 0 : type === 'probation' ? 4 : 12,
-      leaveTakenDays: n % 3,
     });
     if (!inPayroll) continue;
+    if (!newJoiner) sampleLeave(n, id, joinDate, organizationId, leave, balances);
+    if (n % 6 === 0) {
+      declarations.push(
+        sampleDeclaration(n, id, organizationId, pay.hra, options.branches[n % options.branches.length]),
+      );
+    }
     const salary = { monthlyBasic: pay.basic * 100, monthlyHra: pay.hra * 100, monthlySpecial: pay.special * 100 };
     const joinMonth = `${joinDate.slice(0, 7)}-01`;
     if (joinMonth < '2026-04-01') {
@@ -263,8 +346,15 @@ export async function seedSampleCompany(db: Db, organizationId: string, options:
   for (let offset = 0; offset < people.length; offset += 500) {
     await db.insert(employees).values(people.slice(offset, offset + 500));
   }
-  for (let offset = 0; offset < revisions.length; offset += 500) {
-    await db.insert(salaryRevisions).values(revisions.slice(offset, offset + 500));
+  for (const [table, rows] of [
+    [salaryRevisions, revisions],
+    [leaveRequests, leave],
+    [leaveBalances, balances],
+    [taxDeclarations, declarations],
+  ] as const) {
+    for (let offset = 0; offset < rows.length; offset += 500) {
+      await db.insert(table).values(rows.slice(offset, offset + 500) as never);
+    }
   }
 
   if (options.history) {
