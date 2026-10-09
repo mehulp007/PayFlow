@@ -39,4 +39,14 @@ test('sign up with a sample company and explore it in every role', async ({ page
   await expect(page).toHaveURL(/\/me$/);
   await page.getByRole('button', { name: 'View my payslip' }).click();
   await expect(page.locator('.overview-banner')).toContainText('September pay');
+
+  // Payslip history with PDF downloads, and the regime comparison.
+  await page.getByRole('link', { name: 'Payslips' }).click();
+  await expect(page.locator('tbody tr')).toHaveCount(6);
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download September 2026 payslip' }).click();
+  expect((await download).suggestedFilename()).toBe('payslip-2026-09-EMP00001.pdf');
+  await page.getByRole('link', { name: 'Tax & declarations' }).click();
+  await expect(page.locator('.regime-card')).toHaveCount(2);
+  await expect(page.getByRole('heading', { name: 'Declaration (Form 124)' })).toBeVisible();
 });

@@ -23,19 +23,21 @@ async function openOctoberRun(page: Page) {
 /** Verifies every visible missing-bank exception, recalculating until none remain. */
 async function clearBankExceptions(page: Page) {
   const panel = page.locator('.attention-panel');
+  const metrics = page.locator('.attention-metrics');
   for (let round = 0; round < 5; round++) {
+    const blocking = Number((await metrics.textContent())?.match(/(\d+) blocking/)?.[1] ?? 0);
+    if (!blocking) return;
+    // The panel lists a few exceptions at a time and refreshes only after recalculation.
     const verify = panel.getByRole('button', { name: 'Verify demo bank details' });
     const pending = await verify.count();
-    if (!pending) return;
-    // The exception list refreshes only after recalculation, so verify each visible person in turn.
     for (let index = 0; index < pending; index++) {
       await verify.nth(index).click();
       await expect(page.locator('.toast')).toContainText('Synthetic bank verification added');
     }
     await page.getByRole('button', { name: 'Calculate', exact: true }).click();
     await expect(page.locator('.toast')).toContainText('Payroll calculated');
-    // Lists refresh in the background after the toast; read the next round from fresh data.
-    await page.waitForLoadState('networkidle');
+    // Wait for the refreshed totals before reading the next round.
+    await expect(metrics).toContainText(`${blocking - pending} blocking`);
   }
 }
 
@@ -59,7 +61,7 @@ test('prepare, send back, approve, pay and close a run across roles', async ({ p
 
   // Each line explains its calculation and the rule pack used.
   await page.locator('tbody tr').first().click();
-  await expect(page.locator('.calculation-meta')).toContainText('Rule IN-TY2026-27-v2');
+  await expect(page.locator('.calculation-meta')).toContainText('Rule IN-TY2026-27-v3');
   await page.keyboard.press('Escape');
 
   await clearBankExceptions(page);
