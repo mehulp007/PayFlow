@@ -27,7 +27,7 @@ export function DashboardPage({run,role,onNavigate,onCalculate,busy}:{run:Run|nu
       </section>
       <section className="panel"><PanelTitle title="Compliance watch" description="Statutory work stays visible alongside pay" action={<button className="text-button" onClick={()=>onNavigate('Taxes & Compliance')}>View all <ArrowRight size={15}/></button>}/>
         <div className="watch-list"><div><span className="watch-icon amber"><CalendarClock size={19}/></span><span><strong>September contributions</strong><small>EPF and ESI preparation after payroll approval</small></span><Pill tone="warning">Upcoming</Pill></div><div><span className="watch-icon blue"><FileCheck2 size={19}/></span><span><strong>Form 138 · Q2</strong><small>Quarterly salary TDS preparation</small></span><Pill tone="info">Prepare</Pill></div><div><span className="watch-icon mint"><MapPinned size={19}/></span><span><strong>State deductions</strong><small>Professional tax and welfare schedules</small></span><Pill tone="neutral">Review</Pill></div></div>
-        <div className="info-strip"><AlertCircle size={18}/> Demo state rates are sample values. Activate a state only after rule review and sign-off.</div>
+        <div className="info-strip"><AlertCircle size={18}/> State rules cover Karnataka, Maharashtra, Tamil Nadu, West Bengal and Haryana (reviewed October 2026). Verify against state notifications before live use.</div>
       </section>
     </div>
   </>;
@@ -36,17 +36,17 @@ export function DashboardPage({run,role,onNavigate,onCalculate,busy}:{run:Run|nu
 export function CompliancePage({run}:{run:Run|null}){
   return <>
     <Heading eyebrow="TAXES & COMPLIANCE" title="Statutory workspace" description="Rule versions, filing preparation, and due dates in one place."/>
-    <div className="compliance-hero"><ShieldCheck size={31}/><div><strong>Tax Year 2026–27</strong><span>Income-tax Act, 2025 · salary TDS section 392(1) · new regime default</span></div><Pill tone="info">Demo rule pack v1</Pill></div>
+    <div className="compliance-hero"><ShieldCheck size={31}/><div><strong>Tax Year 2026–27</strong><span>Income-tax Act, 2025 · salary TDS section 392 · new regime default · Labour Codes in force from 21 Nov 2025</span></div><Pill tone="info">Rule pack v2 · Oct 2026</Pill></div>
     <div className="compliance-grid">
       {[
-        {icon:BookOpenCheck,title:'Income tax',text:'Projected annual salary, old/new regime, standard deduction, rebate, surcharge, cess and monthly TDS.',tag:'Form 138 preparation'},
-        {icon:Users,title:'EPF, EPS & EDLI',text:'Effective-dated EPF wage ceiling: ₹15,000 before 17 Sep 2026; ₹25,000 from that date.',tag:'ECR preparation'},
-        {icon:ShieldCheck,title:'ESI',text:'Employee and employer contributions with coverage checks and pay-period calculations.',tag:'Contribution preparation'},
-        {icon:MapPinned,title:'State rules',text:'Professional tax and labour welfare values are placeholders pending work-state rule packs.',tag:'State sign-off required'},
+        {icon:BookOpenCheck,title:'Income tax',text:'Old/new regime slabs, ₹75,000 standard deduction, ₹60,000 rebate with marginal relief, surcharge, cess and monthly TDS from a year-to-date projection.',tag:'Form 138 preparation'},
+        {icon:Users,title:'EPF, EPS & EDLI',text:'Wages per the Code on Wages (50% rule). Ceiling ₹25,000 from 17 Sep 2026 (S.O. 5109(E)); September split by days. EPS stops at 58.',tag:'ECR preparation'},
+        {icon:ShieldCheck,title:'ESI',text:'0.75% + 3.25% under the ₹21,000 ceiling; coverage continues to the end of the contribution period; ₹176/day exemption.',tag:'Contribution preparation'},
+        {icon:MapPinned,title:'State rules',text:'Professional tax and labour welfare fund slabs, deduction months and caps for each supported state.',tag:'Reviewed Oct 2026'},
       ].map(item=><section className="panel compliance-card" key={item.title}><div className="compliance-icon"><item.icon size={22}/></div><h2>{item.title}</h2><p>{item.text}</p><Pill tone="neutral">{item.tag}</Pill></section>)}
     </div>
-    <div className="two-column"><section className="panel"><PanelTitle title="Filing calendar" description="Dates are reminders; confirm each current portal deadline before filing"/><div className="calendar-row"><span>OCT <strong>15</strong></span><div><strong>September ESI contribution</strong><small>Prepare return and record challan reference</small></div><Pill tone="warning">Review date</Pill></div><div className="calendar-row"><span>OCT <strong>31</strong></span><div><strong>Q2 salary TDS · Form 138</strong><small>Reconcile deductions with challans</small></div><Pill tone="warning">Review date</Pill></div></section>
-      <section className="panel"><PanelTitle title="Run control" description="Current status and outstanding work"/><div className="control-metric"><span>Current run</span><Pill tone={run?.status==='approved'?'success':'info'}>{run?.status?.replaceAll('_',' ') ?? 'Loading'}</Pill></div><div className="control-metric"><span>Blocking exceptions</span><strong>{run?.blocking ?? 0}</strong></div><div className="control-metric"><span>Rule version</span><strong>IN-TY2026-27-v1</strong></div><div className="info-strip"><LockKeyhole size={17}/> Production filing formats and state rates require payroll-specialist sign-off.</div></section></div>
+    <div className="two-column"><section className="panel"><PanelTitle title="Filing calendar" description="Dates are reminders; confirm each current portal deadline before filing"/><div className="calendar-row"><span>OCT <strong>15</strong></span><div><strong>September EPF ECR and ESI contribution</strong><small>One ECR covers both September ceiling periods; record challan references</small></div><Pill tone="warning">Review date</Pill></div><div className="calendar-row"><span>OCT <strong>31</strong></span><div><strong>Q2 salary TDS · Form 138</strong><small>Reconcile deductions with challans</small></div><Pill tone="warning">Review date</Pill></div></section>
+      <section className="panel"><PanelTitle title="Run control" description="Current status and outstanding work"/><div className="control-metric"><span>Current run</span><Pill tone={run?.status==='approved'?'success':'info'}>{run?.status?.replaceAll('_',' ') ?? 'Loading'}</Pill></div><div className="control-metric"><span>Blocking exceptions</span><strong>{run?.blocking ?? 0}</strong></div><div className="control-metric"><span>Rule version</span><strong>IN-TY2026-27-v2</strong></div><div className="info-strip"><LockKeyhole size={17}/> Production filing formats and state rates require payroll-specialist sign-off.</div></section></div>
   </>;
 }
 

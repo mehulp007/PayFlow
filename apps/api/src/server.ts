@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { parse } from 'csv-parse/sync';
-import { calculatePayroll, type EmployeePayrollProfile, type PayrollInput, type PayrollLine } from '@payflow/core';
+import { calculatePayroll, RULE_VERSION, type EmployeePayrollProfile, type Gender, type PayrollInput, type PayrollLine } from '@payflow/core';
 import { db, demoSeedLastEmployeeId, initializeDatabase } from './db.js';
 import { changePassword, createUser, initializeAuth, listUsers, login, logout, removeDemoUser, resetUserPassword, sessionUser, type Principal, type Role as Actor } from './auth.js';
 import type { FastifyRequest } from 'fastify';
@@ -67,6 +67,7 @@ function employeeFromDb(row: DbEmployee): EmployeeRecord {
     id: String(row.id), name: String(row.name), branch: String(row.branch), state: String(row.state),
     payGroup: String(row.pay_group), joinDate: String(row.join_date), dateOfBirth: String(row.date_of_birth),
     bankAccountLast4: row.bank_account_last4 ? String(row.bank_account_last4) : null,
+    gender: ['female','male','other'].includes(String(row.gender)) ? row.gender as Gender : null,
     bankReady: Boolean(row.bank_ready), monthlyBasic: asMoney(row.monthly_basic),
     monthlyHra: asMoney(row.monthly_hra), monthlySpecial: asMoney(row.monthly_special),
     taxRegime: row.tax_regime === 'old' ? 'old' : 'new',
@@ -74,9 +75,8 @@ function employeeFromDb(row: DbEmployee): EmployeeRecord {
     annualOtherIncome: asMoney(row.annual_other_income),
     annualPriorEmployerTaxableSalary: asMoney(row.annual_prior_employer_taxable_salary),
     taxAlreadyDeducted: asMoney(row.tax_already_deducted), pfMember: Boolean(row.pf_member),
-    pfOnFullBasic: Boolean(row.pf_on_full_basic), esiMember: Boolean(row.esi_member),
-    professionalTax: row.professional_tax === null ? null : asMoney(row.professional_tax),
-    labourWelfareFund: row.labour_welfare_fund === null ? null : asMoney(row.labour_welfare_fund),
+    pfOnActualWages: Boolean(row.pf_on_full_basic), epsMember: Boolean(row.eps_member),
+    esiMember: Boolean(row.esi_member),
     employmentType:employmentTypes.includes(row.employment_type as EmploymentType) ? row.employment_type as EmploymentType : 'permanent',
     positionLevel:Number(row.position_level ?? 1),jobTitle:String(row.job_title ?? 'Associate'),
     department:String(row.department ?? 'Operations'),managerId:row.manager_id ? String(row.manager_id) : null,
@@ -130,7 +130,7 @@ function csvCell(value: unknown): string {
 }
 function csv(rows: unknown[][]): string { return rows.map(row => row.map(csvCell).join(',')).join('\r\n') + '\r\n'; }
 
-app.get('/api/health', async () => ({ ok: true, mode: 'demo', ruleVersion: 'IN-TY2026-27-v1' }));
+app.get('/api/health', async () => ({ ok: true, mode: 'demo', ruleVersion: RULE_VERSION }));
 app.post('/api/auth/login',async request=>{
   const body=(request.body??{}) as {username?:string;password?:string};
   const result=await login(body.username,body.password,request.ip);
@@ -271,6 +271,8 @@ app.post('/api/employees',async request=>{
   const leaveBalanceDays=Number(body.leaveBalanceDays??0);
   const pfMember=Boolean(body.pfMember);
   const esiMember=Boolean(body.esiMember);
+  const gender=body.gender==null||body.gender==='' ? null : String(body.gender);
+  const epsMember=pfMember&&monthlyBasic+monthlySpecial<=2500000;
   const payrollScope=employmentType!=='contractor';
   const validDate=(value:string)=>{
     if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
@@ -284,7 +286,7 @@ app.post('/api/employees',async request=>{
     !validDate(joinDate)||!validDate(dateOfBirth)||dateOfBirth>=joinDate||joinDate>run.payment_date||
     (workEmail!==null&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(workEmail))||
     (phone!==null&&!/^\+?[0-9]{10,15}$/.test(phone))||
-    !payGroup||payGroup.length>80||
+    !payGroup||payGroup.length>80||(gender!==null&&!['female','male','other'].includes(gender))||
     [monthlyBasic,monthlyHra,monthlySpecial].some(value=>!Number.isSafeInteger(value)||value<0)||
     (payrollScope&&monthlyBasic===0)||!Number.isInteger(leaveBalanceDays)||leaveBalanceDays<0||leaveBalanceDays>365) {
     throw Object.assign(new Error('Check the employee name, hierarchy, location, dates and pay details'),{statusCode:400});
@@ -301,10 +303,10 @@ app.post('/api/employees',async request=>{
     const id=`EMP${String(Number(latest.rows[0]?.max??0)+1).padStart(5,'0')}`;
     const fields=['id','name','branch','state','pay_group','join_date','date_of_birth',
       'monthly_basic','monthly_hra','monthly_special','tax_regime','pf_member','esi_member',
-      'professional_tax','labour_welfare_fund','employment_type','position_level','job_title',
+      'gender','eps_member','employment_type','position_level','job_title',
       'department','manager_id','work_email','phone','employment_status','payroll_scope','leave_balance_days'];
     const values=[id,name,branch,state,payGroup,joinDate,dateOfBirth,monthlyBasic,monthlyHra,
-      monthlySpecial,'new',pfMember,esiMember,payrollScope?20000:0,0,employmentType,positionLevel,jobTitle,
+      monthlySpecial,'new',pfMember,esiMember,gender,epsMember,employmentType,positionLevel,jobTitle,
       department,managerId,workEmail,phone,'active',payrollScope,leaveBalanceDays];
     await tx.query(`INSERT INTO employees(${fields.join(',')}) VALUES(${fields.map((_,index)=>`$${index+1}`).join(',')})`,values);
     await tx.query(`INSERT INTO payroll_inputs(run_id,employee_id,working_days,unpaid_days)
@@ -555,14 +557,16 @@ app.get('/api/runs/:id/export/:kind',async (request,reply) => {
     ...rows.rows.map(({result:r})=>[r.employeeId,r.employeeName,r.state,r.gross/100,r.deductions/100,r.net/100])];
   if (kind==='bank-demo') output=[['DEMO ONLY - NOT A BANK UPLOAD FILE'],['Employee ID','Beneficiary','Fictional Account','Net INR'],
     ...rows.rows.map(({result:r})=>[r.employeeId,r.employeeName,`TEST${r.employeeId}`,r.net/100])];
-  if (kind==='epf-prep') output=[['Employee ID','PF Wages INR','Employee EPF INR','Employer EPF INR','Employer EPS INR','Employer EDLI INR'],
-    ...rows.rows.map(({result:r})=>[r.employeeId,r.basic/100,r.pfEmployee/100,r.pfEmployer/100,r.epsEmployer/100,r.edliEmployer/100])];
-  if (kind==='esi-prep') output=[['Employee ID','Gross INR','Employee ESI INR','Employer ESI INR'],
-    ...rows.rows.map(({result:r})=>[r.employeeId,r.gross/100,r.esiEmployee/100,r.esiEmployer/100])];
+  if (kind==='epf-prep') output=[['Employee ID','Member name','Gross wages INR','EPF wages INR','EPS wages INR','EDLI wages INR',
+    'EE share INR','EPS contribution INR','ER share INR','EDLI INR','Admin charges INR','NCP days'],
+    ...rows.rows.filter(({result:r})=>r.pfWages>0).map(({result:r})=>[r.employeeId,r.employeeName,r.gross/100,r.pfWages/100,
+      r.epsWages/100,r.edliWages/100,r.pfEmployee/100,r.epsEmployer/100,r.pfEmployer/100,r.edliEmployer/100,r.epfAdminCharges/100,r.ncpDays])];
+  if (kind==='esi-prep') output=[['Employee ID','Name','ESI wages INR','Employee ESI INR','Employer ESI INR'],
+    ...rows.rows.filter(({result:r})=>r.esiWages>0).map(({result:r})=>[r.employeeId,r.employeeName,r.esiWages/100,r.esiEmployee/100,r.esiEmployer/100])];
   if (kind==='form138-prep') output=[['Employee ID','Salary INR','Tax deducted INR','Tax year','Applicable section'],
     ...rows.rows.map(({result:r})=>[r.employeeId,r.gross/100,r.incomeTax/100,'2026-27','392(1)'])];
-  if (kind==='state-deductions') output=[['Employee ID','State','Professional tax INR','Labour welfare INR'],
-    ...rows.rows.map(({result:r})=>[r.employeeId,r.state,r.professionalTax/100,r.labourWelfareFund/100])];
+  if (kind==='state-deductions') output=[['Employee ID','State','Professional tax INR','LWF employee INR','LWF employer INR'],
+    ...rows.rows.map(({result:r})=>[r.employeeId,r.state,r.professionalTax/100,r.labourWelfareFund/100,r.labourWelfareFundEmployer/100])];
   await audit(id,actorId(request),'report.exported',{kind});
   reply.header('content-type','text/csv; charset=utf-8');
   reply.header('content-disposition',`attachment; filename="${id}-${kind}.csv"`);

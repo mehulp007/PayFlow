@@ -172,6 +172,8 @@ export async function initializeDatabase(): Promise<void> {
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS payroll_scope BOOLEAN NOT NULL DEFAULT true;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_balance_days INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE employees ADD COLUMN IF NOT EXISTS leave_taken_days INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS gender TEXT;
+    ALTER TABLE employees ADD COLUMN IF NOT EXISTS eps_member BOOLEAN;
     CREATE INDEX IF NOT EXISTS employees_hierarchy_idx ON employees(employment_type,position_level,department);
   `);
   const count = await db.query<{ count: string }>('SELECT count(*)::text AS count FROM employees');
@@ -253,5 +255,13 @@ async function backfillHierarchy(): Promise<void> {
       pf_member=false,esi_member=false,professional_tax=0,labour_welfare_fund=0,
       bank_ready=false,bank_account_last4=NULL,leave_balance_days=0
       WHERE id<='${demoSeedLastEmployeeId}' AND employment_type='contractor';
+    UPDATE employees SET gender=CASE
+        WHEN id IN ('EMP00002','EMP00004','EMP00005') THEN 'female'
+        WHEN id IN ('EMP00001','EMP00003') THEN 'male'
+        WHEN substring(id from 4)::integer % 2=0 THEN 'female' ELSE 'male' END
+      WHERE gender IS NULL AND id<='${demoSeedLastEmployeeId}';
+    -- EPS membership needs PF wages within the ₹25,000 ceiling (S.O. 5109(E), 17 September 2026).
+    UPDATE employees SET eps_member=(pf_member AND monthly_basic+monthly_special<=2500000)
+      WHERE eps_member IS NULL;
   `);
 }

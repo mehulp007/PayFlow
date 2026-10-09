@@ -89,6 +89,7 @@ function EmployeeDetail({person,onClose}:{person:Employee;onClose:()=>void}){
       pair('Branch',person.branch),pair('Work state',person.state),
       pair('Reports to',person.managerName?`${person.managerName} · ${person.managerId}`:'Top position'),
       pair('Join date',person.joinDate),pair('Date of birth',person.dateOfBirth),
+      pair('Gender',person.gender?typeLabel(person.gender):'Not recorded'),
       pair('Work email',person.workEmail??'Not recorded'),pair('Phone',person.phone??'Not recorded'),
       pair('Pay group',person.payGroup),
     ]}
@@ -97,8 +98,8 @@ function EmployeeDetail({person,onClose}:{person:Employee;onClose:()=>void}){
       {pair('Special allowance',money(person.monthlySpecial))}
       {pair('Regular monthly gross',money(person.monthlyBasic+person.monthlyHra+person.monthlySpecial))}
       {pair('Tax regime',typeLabel(person.taxRegime))}{pair('EPF member',person.pfMember?'Yes':'No')}
-      {pair('ESI member',person.esiMember?'Yes':'No')}{pair('Professional tax · demo value',money(person.professionalTax??0))}
-      {pair('Labour welfare · demo value',money(person.labourWelfareFund??0))}
+      {pair('EPS member',person.epsMember?'Yes':'No')}{pair('ESI member',person.esiMember?'Yes':'No')}
+      {pair('Professional tax & LWF',`${person.state} rules`)}
       {pair('Bank verified',person.bankReady?'Yes':'No')}{pair('Account ending',person.bankAccountLast4??'Not recorded')}
     </>:<div className="info-strip">Contractor-based people are in the directory and attendance view only. Their payments are outside this employee payroll run.</div>}
     <h3>Attendance and leave</h3>{pair('Working days',person.workingDays===null?'Not recorded':String(person.workingDays))}
@@ -110,7 +111,7 @@ function EmployeeDetail({person,onClose}:{person:Employee;onClose:()=>void}){
 }
 
 type NewEmployee={name:string;employmentType:Employee['employmentType'];positionLevel:number;jobTitle:string;
-  department:string;branch:string;state:string;managerId:string;joinDate:string;dateOfBirth:string;
+  department:string;branch:string;state:string;managerId:string;joinDate:string;dateOfBirth:string;gender:string;
   workEmail:string;phone:string;payGroup:string;monthlyBasic:string;monthlyHra:string;
   monthlySpecial:string;leaveBalanceDays:string;pfMember:boolean;esiMember:boolean};
 
@@ -118,7 +119,7 @@ function AddEmployee({role,summary,onClose,onCreated}:{role:Role;summary:Hierarc
   onCreated:(employee:Employee)=>Promise<void>}){
   const [form,setForm]=useState<NewEmployee>({name:'',employmentType:'permanent',positionLevel:1,
     jobTitle:'Associate',department:'Operations',branch:'Bengaluru',state:'Karnataka',managerId:'',
-    joinDate:'2026-09-01',dateOfBirth:'1995-01-01',workEmail:'',phone:'',payGroup:'General',
+    joinDate:'2026-09-01',dateOfBirth:'1995-01-01',gender:'',workEmail:'',phone:'',payGroup:'General',
     monthlyBasic:'18000',monthlyHra:'9000',monthlySpecial:'7000',leaveBalanceDays:'12',pfMember:true,esiMember:false});
   const [managerSearch,setManagerSearch]=useState('');
   const [managers,setManagers]=useState<ManagerOption[]>([]);
@@ -133,7 +134,7 @@ function AddEmployee({role,summary,onClose,onCreated}:{role:Role;summary:Hierarc
     event.preventDefault();setSaving(true);setError('');
     try{
       const employee=await api<Employee>('/employees',role,{method:'POST',body:JSON.stringify({
-        ...form,managerId:form.positionLevel===8?null:form.managerId||null,
+        ...form,managerId:form.positionLevel===8?null:form.managerId||null,gender:form.gender||null,
         monthlyBasic:Math.round(Number(form.monthlyBasic)*100),
         monthlyHra:Math.round(Number(form.monthlyHra)*100),
         monthlySpecial:Math.round(Number(form.monthlySpecial)*100),
@@ -162,6 +163,7 @@ function AddEmployee({role,summary,onClose,onCreated}:{role:Role;summary:Hierarc
       <label>Work state<input value={form.state} readOnly/></label></div>
       <div className="hierarchy-form-grid"><label>Join date<input required type="date" value={form.joinDate} onChange={event=>change({joinDate:event.target.value})}/></label>
       <label>Date of birth<input required type="date" value={form.dateOfBirth} onChange={event=>change({dateOfBirth:event.target.value})}/></label></div>
+      <label>Gender<select value={form.gender} onChange={event=>change({gender:event.target.value})}><option value="">Not recorded</option><option value="female">Female</option><option value="male">Male</option><option value="other">Other</option></select></label>
       <div className="hierarchy-form-grid"><label>Work email<input type="email" value={form.workEmail} onChange={event=>change({workEmail:event.target.value})} placeholder="optional@example.invalid"/></label>
       <label>Phone<input value={form.phone} onChange={event=>change({phone:event.target.value})} placeholder="Optional, 10–15 digits"/></label></div>
       <h3>{contractor?'Attendance setup':'Pay and statutory setup'}</h3>

@@ -15,7 +15,7 @@ export type Employee = {
   id:string;name:string;branch:string;state:string;payGroup:string;joinDate:string;dateOfBirth:string;
   bankAccountLast4:string|null;bankReady:boolean;monthlyBasic:number;monthlyHra:number;monthlySpecial:number;
   taxRegime:'new'|'old';oldRegimeAnnualDeductions:number;pfMember:boolean;esiMember:boolean;
-  professionalTax:number|null;labourWelfareFund:number|null;
+  epsMember:boolean;pfOnActualWages:boolean;gender:'female'|'male'|'other'|null;
   employmentType:'contractor'|'casual'|'fixed_term'|'probation'|'permanent';positionLevel:number;
   jobTitle:string;department:string;managerId:string|null;managerName:string|null;
   workEmail:string|null;phone:string|null;employmentStatus:string;payrollScope:boolean;
@@ -28,10 +28,12 @@ export type ManagerOption={id:string;name:string;jobTitle:string;positionLevel:n
 export type Flag = {code:string;severity:'blocking'|'warning';message:string};
 export type Line = {
   employeeId:string;employeeName:string;branch:string;state:string;basic:number;hra:number;special:number;
-  variablePay:number;lossOfPay:number;gross:number;pfEmployee:number;pfEmployer:number;epsEmployer:number;
-  edliEmployer:number;esiEmployee:number;esiEmployer:number;professionalTax:number;labourWelfareFund:number;
-  incomeTax:number;otherDeduction:number;deductions:number;net:number;annualProjectedTax:number;
-  ruleVersion:string;flags:Flag[];
+  variablePay:number;lossOfPay:number;ncpDays:number;gross:number;statutoryWages:number;pfWages:number;
+  epsWages:number;edliWages:number;pfEmployee:number;pfEmployer:number;epsEmployer:number;edliEmployer:number;
+  epfAdminCharges:number;esiWages:number;esiEmployee:number;esiEmployer:number;professionalTax:number;
+  labourWelfareFund:number;labourWelfareFundEmployer:number;incomeTax:number;otherDeduction:number;
+  deductions:number;net:number;employerCost:number;annualProjectedTax:number;ruleVersion:string;
+  ruleNotes:string[];flags:Flag[];
 };
 export type Exception = Flag & {employeeId:string;name:string};
 export type Audit = {id:number;actor:string;action:string;details:Record<string,unknown>;created_at:string};
