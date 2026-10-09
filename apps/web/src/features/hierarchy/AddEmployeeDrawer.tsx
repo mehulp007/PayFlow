@@ -22,7 +22,7 @@ interface Form {
   monthlyBasic: string;
   monthlyHra: string;
   monthlySpecial: string;
-  leaveBalanceDays: string;
+  carriedForwardLeave: string;
   pfMember: boolean;
   esiMember: boolean;
 }
@@ -44,7 +44,7 @@ const initialForm = (summary: HierarchySummary): Form => ({
   monthlyBasic: '18000',
   monthlyHra: '9000',
   monthlySpecial: '7000',
-  leaveBalanceDays: '12',
+  carriedForwardLeave: '0',
   pfMember: true,
   esiMember: false,
 });
@@ -77,7 +77,7 @@ export function AddEmployeeDrawer({
         monthlyBasic: toPaise(form.monthlyBasic),
         monthlyHra: toPaise(form.monthlyHra),
         monthlySpecial: toPaise(form.monthlySpecial),
-        leaveBalanceDays: Number(form.leaveBalanceDays),
+        carriedForwardLeave: Number(form.carriedForwardLeave),
       });
       onCreated(employee);
     } catch {
@@ -120,7 +120,6 @@ export function AddEmployeeDrawer({
                   monthlyBasic: paid ? '18000' : '0',
                   monthlyHra: paid ? '9000' : '0',
                   monthlySpecial: paid ? '7000' : '0',
-                  leaveBalanceDays: next === 'permanent' ? '12' : '0',
                   pfMember: paid,
                 });
               }}
@@ -337,14 +336,14 @@ export function AddEmployeeDrawer({
           </>
         )}
         <label>
-          Opening leave balance · days
+          Earned leave carried forward · days
           <input
             type="number"
             min="0"
-            max="365"
+            max="30"
             step="1"
-            value={form.leaveBalanceDays}
-            onChange={event => change({ leaveBalanceDays: event.target.value })}
+            value={form.carriedForwardLeave}
+            onChange={event => change({ carriedForwardLeave: event.target.value })}
           />
         </label>
         <div className="info-strip">

@@ -15,7 +15,7 @@
 }
 .people-side p {
   font-size: 11px;
-  color: #8492a9;
+  color: var(--color-text-muted);
 }
 .side-illustration {
   width: 67px;
@@ -23,20 +23,20 @@
   display: grid;
   place-items: center;
   border-radius: 18px;
-  background: #eaf1ff;
-  color: #2d62c8;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
 }
 .side-benefit {
   display: flex;
   align-items: center;
   gap: 9px;
   font-size: 10px;
-  color: #536886;
-  border-top: 1px solid #ebeff6;
+  color: var(--color-text-secondary);
+  border-top: 1px solid var(--color-border);
   padding: 12px 0;
 }
 .side-benefit svg {
-  color: #4278ca;
+  color: var(--color-primary);
 }
 .employee-cell {
   display: flex;
@@ -54,7 +54,7 @@
   align-items: center;
   gap: 12px;
   padding: 14px;
-  background: #f6f9ff;
+  background: var(--color-surface-muted);
   border-radius: 10px;
 }
 .large-avatar {
@@ -62,8 +62,8 @@
   height: 48px;
   display: grid;
   place-items: center;
-  color: #315caa;
-  background: #e5efff;
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
   border-radius: 13px;
 }
 .employee-summary strong,
@@ -77,7 +77,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #8493aa;
+  color: var(--color-text-muted);
   font-size: 10px;
   margin-top: 5px;
 }

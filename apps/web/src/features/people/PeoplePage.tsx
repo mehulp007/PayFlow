@@ -1,11 +1,12 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { BadgeCheck, ChevronRight, FileText, Search, ShieldCheck, Users } from 'lucide-react';
 import type { Employee } from '@payflow/shared';
 import { useReportError } from '../../app/FeedbackProvider';
-import { useBootstrap, useEmployees } from '../../app/queries';
+import { useBootstrap, useEmployee, useEmployees } from '../../app/queries';
 import { Heading, Pagination, PanelTitle, Pill } from '../../components';
 import { count, initials, money } from '../../lib/format';
-import { EmployeeRecordDrawer } from './EmployeeRecordDrawer';
+import { EmployeeRecordDrawer, type RecordTab } from './EmployeeRecordDrawer';
 
 const PAGE_SIZE = 20;
 
@@ -14,6 +15,9 @@ export function PeoplePage({ compensation }: { compensation: boolean }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Employee | null>(null);
+  // Links from search and notifications open a person directly: /people?employee=EMP00002&tab=tax
+  const [params, setParams] = useSearchParams();
+  const linked = useEmployee(params.get('employee')).data;
   const employees = useEmployees(page, PAGE_SIZE, { search });
   useReportError(employees.error);
   const data = employees.data;
@@ -126,6 +130,15 @@ export function PeoplePage({ compensation }: { compensation: boolean }) {
           fallback={selected}
           initialTab={compensation ? 'salary' : 'record'}
           onClose={() => setSelected(null)}
+        />
+      )}
+      {!selected && linked && (
+        <EmployeeRecordDrawer
+          key={linked.id}
+          employeeId={linked.id}
+          fallback={linked}
+          initialTab={(params.get('tab') as RecordTab | null) ?? 'record'}
+          onClose={() => setParams({}, { replace: true })}
         />
       )}
     </>

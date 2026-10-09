@@ -6,7 +6,7 @@
 }
 .hierarchy-metrics > .panel {
   padding: 17px 19px;
-  background: linear-gradient(120deg, #fff, #f4f7fe);
+  background: linear-gradient(120deg, var(--color-surface), var(--tint-blue));
 }
 .hierarchy-metrics span,
 .hierarchy-metrics strong,
@@ -14,21 +14,21 @@
   display: block;
 }
 .hierarchy-metrics span {
-  color: #657894;
+  color: var(--color-text-muted);
   font-size: 10px;
   font-weight: 800;
 }
 .hierarchy-metrics strong {
   font: 800 23px Manrope;
-  color: #183c81;
+  color: var(--color-primary-deep);
   margin: 5px 0;
 }
 .hierarchy-metrics small {
-  color: #96a5b9;
+  color: var(--color-text-faint);
   font-size: 10px;
 }
 .hierarchy-map .panel-title > svg {
-  color: #3368c5;
+  color: var(--color-primary);
 }
 .hierarchy-legend {
   display: flex;
@@ -37,9 +37,9 @@
   padding: 0 20px 15px;
 }
 .hierarchy-legend-chip {
-  border: 1px solid #dfe7f2;
-  background: #f7f9fd;
-  color: #65748e;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
   border-radius: 20px;
   padding: 7px 11px;
   font-size: 10px;
@@ -47,9 +47,9 @@
 }
 .hierarchy-legend-chip.selected,
 .hierarchy-level-types button.selected {
-  background: #e7f0ff;
-  border-color: #9cbbef;
-  color: #1f53af;
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
 }
 .hierarchy-levels {
   padding: 0 17px 18px;
@@ -58,7 +58,7 @@
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   gap: 10px;
-  border-top: 1px solid #edf1f6;
+  border-top: 1px solid var(--color-border);
   padding: 8px 0;
 }
 .hierarchy-level-name {
@@ -70,21 +70,21 @@
   border-radius: 8px;
   background: transparent;
   padding: 8px;
-  color: #213a65;
+  color: var(--color-text);
 }
 .hierarchy-level-name:hover,
 .hierarchy-level-name.selected {
-  background: #eff5ff;
-  border-color: #d9e7fb;
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary-border);
 }
 .hierarchy-level-name > span {
   display: grid;
   place-items: center;
-  background: #e4edff;
+  background: var(--color-primary-soft);
   border-radius: 7px;
   width: 29px;
   height: 29px;
-  color: #2258b6;
+  color: var(--color-primary);
   font-size: 10px;
   font-weight: 800;
 }
@@ -94,7 +94,7 @@
 }
 .hierarchy-level-name small {
   font-size: 9px;
-  color: #91a0b4;
+  color: var(--color-text-faint);
   white-space: nowrap;
 }
 .hierarchy-level-types {
@@ -103,11 +103,11 @@
   gap: 6px;
 }
 .hierarchy-level-types button {
-  border: 1px solid #e7edf5;
-  background: #fbfcff;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   border-radius: 7px;
   padding: 7px 5px;
-  color: #697b96;
+  color: var(--color-text-muted);
 }
 .hierarchy-level-types button strong,
 .hierarchy-level-types button span {
@@ -115,7 +115,7 @@
 }
 .hierarchy-level-types button strong {
   font-size: 12px;
-  color: #23477f;
+  color: var(--color-primary-deep);
 }
 .hierarchy-level-types button span {
   font-size: 8px;
@@ -139,10 +139,10 @@
   flex: 1;
 }
 .hierarchy-filters select {
-  border: 1px solid #dfe7f2;
+  border: 1px solid var(--color-border-strong);
   border-radius: 7px;
   background: var(--color-surface);
-  color: #506587;
+  color: var(--color-text-secondary);
   font-size: 10px;
   padding: 7px;
   min-height: 35px;
@@ -153,15 +153,15 @@
 .hierarchy-empty {
   padding: 30px;
   text-align: center;
-  color: #8a9bb0;
+  color: var(--color-text-muted);
   font-size: 11px;
 }
 .hierarchy-detail-banner {
   display: flex;
   gap: 12px;
   align-items: center;
-  background: #edf4ff;
-  border: 1px solid #dce9fb;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary-border);
   border-radius: 10px;
   padding: 15px;
 }
@@ -171,8 +171,8 @@
   width: 37px;
   height: 37px;
   border-radius: 9px;
-  background: #265aba;
-  color: #fff;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
   font-weight: 800;
   font-size: 12px;
 }
@@ -184,7 +184,7 @@
   font-size: 13px;
 }
 .hierarchy-detail-banner small {
-  color: #748bb0;
+  color: var(--color-text-muted);
   font-size: 10px;
   margin-top: 4px;
 }
@@ -199,17 +199,17 @@
 .hierarchy-form-grid > label {
   display: grid;
   gap: 6px;
-  color: #4d6282;
+  color: var(--color-text-secondary);
   font-size: 10px;
   font-weight: 800;
   margin-bottom: 11px;
 }
 .hierarchy-form input,
 .hierarchy-form select {
-  border: 1px solid #dce4ef;
+  border: 1px solid var(--color-border-strong);
   border-radius: 7px;
   padding: 10px;
-  color: #243b65;
+  color: var(--color-text);
   background: var(--color-surface);
   outline: none;
   width: 100%;
@@ -217,12 +217,12 @@
 }
 .hierarchy-form input:focus,
 .hierarchy-form select:focus {
-  border-color: #6795e7;
+  border-color: var(--color-accent-light);
   box-shadow: 0 0 0 3px #e9f2ff;
 }
 .hierarchy-form input[readonly] {
-  background: #f4f7fb;
-  color: #7e8da4;
+  background: var(--color-surface-sunken);
+  color: var(--color-text-muted);
 }
 .hierarchy-form-grid {
   display: grid;
@@ -242,7 +242,7 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #4d6282;
+  color: var(--color-text-secondary);
 }
 .hierarchy-checks input {
   width: auto;

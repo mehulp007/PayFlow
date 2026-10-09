@@ -1,13 +1,13 @@
 .compliance-hero {
-  background: #eaf1ff;
-  border: 1px solid #d8e5fa;
+  background: var(--color-primary-soft);
+  border: 1px solid var(--color-primary-border);
   border-radius: 12px;
   display: flex;
   align-items: center;
   gap: 15px;
   padding: 18px 22px;
   margin-bottom: 17px;
-  color: #2d5ebc;
+  color: var(--color-primary);
 }
 .compliance-hero div {
   flex: 1;
@@ -17,11 +17,11 @@
   display: block;
 }
 .compliance-hero strong {
-  color: #1b3f83;
+  color: var(--color-primary-deep);
   font-size: 14px;
 }
 .compliance-hero div span {
-  color: #6a83ab;
+  color: var(--color-text-muted);
   font-size: 11px;
   margin-top: 3px;
 }
@@ -36,7 +36,7 @@
   padding: 19px;
 }
 .compliance-card p {
-  color: #8290a6;
+  color: var(--color-text-muted);
   font-size: 11px;
   min-height: 64px;
 }
@@ -47,8 +47,8 @@
   border-radius: 10px;
   display: grid;
   place-items: center;
-  background: #e9f1ff;
-  color: #2c63c1;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   margin-bottom: 16px;
 }
 .calendar-row,
@@ -58,7 +58,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-top: 1px solid #edf1f6;
+  border-top: 1px solid var(--color-border);
   padding: 11px 0;
   font-size: 11px;
 }
@@ -68,8 +68,8 @@
 .calendar-row > span:first-child {
   display: grid;
   place-items: center;
-  background: #edf3ff;
-  color: #315fb2;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   border-radius: 7px;
   font-size: 9px;
   padding: 4px 7px;
@@ -86,7 +86,7 @@
 }
 .calendar-row div small {
   font-size: 10px;
-  color: #98a4b7;
+  color: var(--color-text-faint);
   margin-top: 3px;
 }
 .control-metric {
@@ -104,7 +104,7 @@
 .report-card p {
   min-height: 33px;
   font-size: 11px;
-  color: #8493a9;
+  color: var(--color-text-muted);
 }
 .report-card .button {
   margin-top: 10px;
@@ -113,38 +113,38 @@
   padding: 22px;
 }
 .setup-card > svg {
-  color: #2b5bb6;
+  color: var(--color-primary);
 }
 .setup-card h2 {
   margin-top: 12px;
 }
 .setup-card p {
   font-size: 11px;
-  color: #8795a9;
+  color: var(--color-text-muted);
   margin-bottom: 20px;
 }
 .branch-row {
   display: flex;
   align-items: center;
   gap: 11px;
-  border-top: 1px solid #eef1f5;
+  border-top: 1px solid var(--color-border);
   padding: 14px 20px;
   font-size: 11px;
   font-weight: 600;
-  color: #475c7d;
+  color: var(--color-text-secondary);
 }
 .branch-row svg:first-child {
-  color: #5980c4;
+  color: var(--color-text-muted);
 }
 .branch-row svg:last-child,
 .branch-row .pill {
   margin-left: auto;
-  color: #22a876;
+  color: var(--color-success);
 }
 .tab-bar {
   display: flex;
   gap: 5px;
-  border-bottom: 1px solid #e2e9f3;
+  border-bottom: 1px solid var(--color-border);
   margin-bottom: 17px;
 }
 .tab-bar button {
@@ -152,13 +152,13 @@
   border: 0;
   border-bottom: 2px solid transparent;
   padding: 10px 16px;
-  color: #73829a;
+  color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 800;
 }
 .tab-bar button.selected {
-  color: #265bbb;
-  border-bottom-color: #265bbb;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-accent);
 }
 .state-rules {
   margin-bottom: 17px;
@@ -169,7 +169,7 @@
 }
 .state-rules td small {
   font-size: 11px;
-  color: #53627e;
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 .report-run {

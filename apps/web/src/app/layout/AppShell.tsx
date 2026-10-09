@@ -1,60 +1,33 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router';
-import {
-  Bell,
-  CalendarDays,
-  ChevronDown,
-  CircleHelp,
-  ClipboardList,
-  FileBarChart2,
-  LayoutDashboard,
-  Menu,
-  Network,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Users,
-  Wallet,
-  X,
-  type LucideIcon,
-} from 'lucide-react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { CalendarDays, CircleHelp, Menu, Moon, Search, Sun, Wallet, X } from 'lucide-react';
 import { ROLE_LABELS, type Role } from '@payflow/shared';
 import { useAuth, useUser } from '../AuthProvider';
 import { ErrorBanner, useFeedback } from '../FeedbackProvider';
+import { navigationFor } from '../navigation';
 import { useBootstrap, useViewAs } from '../queries';
+import { useTheme } from '../ThemeProvider';
 import { periodLabel } from '../../lib/period';
+import { CommandPalette } from './CommandPalette';
+import { NotificationBell } from './NotificationBell';
+import { OrganizationSwitcher } from './OrganizationSwitcher';
 
-export const NAVIGATION: Array<{ to: string; label: string; icon: LucideIcon }> = [
-  { to: '/overview', label: 'Overview', icon: LayoutDashboard },
-  { to: '/people', label: 'People', icon: Users },
-  { to: '/hierarchy', label: 'Hierarchy', icon: Network },
-  { to: '/compensation', label: 'Compensation', icon: Wallet },
-  { to: '/payroll', label: 'Payroll Runs', icon: ClipboardList },
-  { to: '/compliance', label: 'Taxes & Compliance', icon: ShieldCheck },
-  { to: '/reports', label: 'Reports', icon: FileBarChart2 },
-  { to: '/settings', label: 'Settings', icon: Settings2 },
-];
-const EMPLOYEE_NAVIGATION = [{ to: '/me', label: 'My payroll', icon: LayoutDashboard }];
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export function AppShell() {
   const user = useUser();
   const { signOut, adopt } = useAuth();
   const { clearError, fail } = useFeedback();
+  const { theme, toggle } = useTheme();
   const viewAs = useViewAs();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const bootstrap = useBootstrap();
   const isEmployee = user.role === 'employee';
-  const organization = bootstrap.data?.organization;
   const run = bootstrap.data?.currentRun;
   const viewAsRoles = bootstrap.data?.viewAsRoles ?? [];
-  const orgInitials = (organization?.name ?? '')
-    .split(/\s+/)
-    .map(word => word[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
 
   async function switchRole(role: Role) {
     try {
@@ -70,6 +43,18 @@ export function AppShell() {
     clearError();
   }, [pathname, clearError]);
 
+  // Ctrl K (⌘ K on a Mac) opens the command palette from anywhere.
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen(open => !open);
+      }
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+
   return (
     <div className="app-shell">
       <aside className={`sidebar ${menuOpen ? 'open' : ''}`}>
@@ -82,23 +67,14 @@ export function AppShell() {
             <small>DEMO WORKSPACE</small>
           </div>
         </div>
-        <div className="org-switch">
-          <span className="org-mark">{orgInitials || '—'}</span>
-          <span>
-            <strong>{organization?.name ?? 'Loading…'}</strong>
-            <small>
-              {organization?.isSample ? 'Sample company' : 'Organization'} · {organization?.branches.length ?? 0}{' '}
-              {organization?.branches.length === 1 ? 'branch' : 'branches'}
-            </small>
-          </span>
-          <ChevronDown size={15} />
-        </div>
+        <OrganizationSwitcher onSwitched={() => setMenuOpen(false)} />
         <p className="nav-caption">WORKSPACE</p>
         <nav>
-          {(isEmployee ? EMPLOYEE_NAVIGATION : NAVIGATION).map(item => (
+          {navigationFor(user.role).map(item => (
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/me'}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }: { isActive: boolean }) => `nav-item ${isActive ? 'active' : ''}`}
             >
@@ -149,14 +125,24 @@ export function AppShell() {
           <button className="icon-button mobile-menu" aria-label="Open menu" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          {isEmployee ? <div className="global-search">Employee self service</div> : <PayrollSearch runId={run?.id} />}
+          <button className="global-search" onClick={() => setPaletteOpen(true)} aria-label="Search and commands">
+            <Search size={18} />
+            <span>{isEmployee ? 'Go to payslips, tax or leave…' : 'Search people, pay runs and pages…'}</span>
+            <kbd>{isMac ? '⌘ K' : 'Ctrl K'}</kbd>
+          </button>
           <div className="top-actions">
             <span className="today">
               <CalendarDays size={17} /> {run ? periodLabel(run.year, run.month) : '—'}
             </span>
-            <button className="icon-button" title="Notifications">
-              <Bell size={19} />
+            <button
+              className="icon-button"
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+              onClick={toggle}
+            >
+              {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
             </button>
+            <NotificationBell />
             <div className="avatar">{(user.displayName ?? user.username).slice(0, 2).toUpperCase()}</div>
             <span className="signed-in-label">
               {user.displayName ?? user.username} · {ROLE_LABELS[user.role]}
@@ -171,28 +157,7 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
-    </div>
-  );
-}
-
-/** The topbar search filters the latest run's employee lines. */
-function PayrollSearch({ runId }: { runId: string | undefined }) {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const [params] = useSearchParams();
-  const target = runId ? `/payroll/${runId}` : '/payroll';
-  const value = pathname === target ? (params.get('search') ?? '') : '';
-  return (
-    <div className="global-search">
-      <Search size={18} />
-      <input
-        placeholder="Search employees, payroll, reports..."
-        value={value}
-        onChange={event =>
-          navigate(`${target}?search=${encodeURIComponent(event.target.value)}`, { replace: pathname === target })
-        }
-      />
-      <kbd>Ctrl K</kbd>
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
     </div>
   );
 }

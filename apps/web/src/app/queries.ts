@@ -1,19 +1,26 @@
 import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  Analytics,
   AuditEvent,
+  AuditPage,
   Bootstrap,
   Branch,
   ComplianceRules,
   CreatedInvitation,
   CreateEmployeeBody,
   CreateRunBody,
+  DeclarationBody,
   Employee,
   HierarchySummary,
   ImportPreview,
   Invitation,
   InviteBody,
+  LeaveRequest,
+  LeaveRequestBody,
+  LeaveSummary,
   LoginResult,
   ManagerOption,
+  NotificationFeed,
   Page,
   PayGroup,
   PayrollLine,
@@ -25,6 +32,8 @@ import type {
   RunView,
   SalaryRevision,
   SalaryRevisionBody,
+  SearchResults,
+  TaxSummary,
   UpdateEmployeeBody,
   User,
 } from '@payflow/shared';
@@ -153,6 +162,15 @@ export interface MyPayslip {
 }
 export function useMyPayslips(enabled: boolean) {
   return useQuery({ queryKey: ['me', 'payslips'], queryFn: () => api.get<MyPayslip[]>('/me/payslips'), enabled });
+}
+
+/** Approved payslips of one person (their own, or anyone's for staff). */
+export function useEmployeePayslips(employeeId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['employee', employeeId, 'payslips'],
+    queryFn: () => api.get<MyPayslip[]>(`/employees/${employeeId}/payslips`),
+    enabled: Boolean(employeeId),
+  });
 }
 
 export function useImport(runId: string | undefined) {
@@ -297,4 +315,124 @@ export function useAccountMutations() {
       mutationFn: (body: { currentPassword: string; newPassword: string }) => api.post('/auth/change-password', body),
     }),
   };
+}
+
+// Tax declarations and regimes
+
+export function useTaxSummary(employeeId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['employee', employeeId, 'tax'],
+    queryFn: () => api.get<TaxSummary>(`/employees/${employeeId}/tax`),
+    enabled: Boolean(employeeId),
+    retry: false,
+  });
+}
+
+export function useDeclarationMutations(employeeId: string | null | undefined) {
+  const invalidate = useInvalidateAll();
+  return {
+    save: useMutation({
+      mutationFn: (body: DeclarationBody) => api.put<TaxSummary>(`/employees/${employeeId}/declaration`, body),
+      onSuccess: invalidate,
+    }),
+    verify: useMutation({
+      mutationFn: () => api.post<TaxSummary>(`/employees/${employeeId}/declaration/verify`),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+// Leave
+
+export function useLeaveSummary(employeeId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['employee', employeeId, 'leave'],
+    queryFn: () => api.get<LeaveSummary>(`/employees/${employeeId}/leave`),
+    enabled: Boolean(employeeId),
+  });
+}
+
+export function useLeaveList(params: { scope: 'team' | 'all'; status: string; page: number }, enabled = true) {
+  const query = new URLSearchParams({ scope: params.scope, status: params.status, page: String(params.page) });
+  return useQuery({
+    queryKey: ['leave', params],
+    queryFn: () => api.get<Page<LeaveRequest>>(`/leave?${query}`),
+    enabled,
+    placeholderData: previous => previous,
+  });
+}
+
+export function useLeaveMutations() {
+  const invalidate = useInvalidateAll();
+  return {
+    request: useMutation({
+      mutationFn: ({ employeeId, body }: { employeeId: string; body: LeaveRequestBody }) =>
+        api.post<LeaveRequest>(`/employees/${employeeId}/leave`, body),
+      onSuccess: invalidate,
+    }),
+    decide: useMutation({
+      mutationFn: ({ id, decision, note }: { id: string; decision: 'approved' | 'rejected'; note?: string }) =>
+        api.post<LeaveRequest>(`/leave/${id}/decision`, { decision, note }),
+      onSuccess: invalidate,
+    }),
+    cancel: useMutation({
+      mutationFn: (id: string) => api.post(`/leave/${id}/cancel`),
+      onSuccess: invalidate,
+    }),
+    carryForward: useMutation({
+      mutationFn: ({ employeeId, days }: { employeeId: string; days: number }) =>
+        api.put<LeaveSummary>(`/employees/${employeeId}/leave/carry-forward`, { days }),
+      onSuccess: invalidate,
+    }),
+  };
+}
+
+// Workspace: notifications, audit log, search, analytics, organizations
+
+/** Notifications are polled so the bell picks up approvals and leave decisions made by others. */
+export function useNotifications() {
+  return useQuery({
+    queryKey: ['notifications'],
+    queryFn: () => api.get<NotificationFeed>('/notifications'),
+    refetchInterval: 30_000,
+    staleTime: 10_000,
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (ids?: number[]) => api.post<NotificationFeed>('/notifications/read', ids ? { ids } : {}),
+    onSuccess: feed => client.setQueryData(['notifications'], feed),
+  });
+}
+
+export type AuditFilters = { actor: string; action: string; from: string; to: string };
+export function useAuditLog(page: number, filters: AuditFilters) {
+  const query = new URLSearchParams({ page: String(page), ...filters });
+  return useQuery({
+    queryKey: ['audit', page, filters],
+    queryFn: () => api.get<AuditPage>(`/audit?${query}`),
+    placeholderData: previous => previous,
+  });
+}
+
+export function useSearch(text: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['search', text],
+    queryFn: () => api.get<SearchResults>(`/search?${new URLSearchParams({ q: text })}`),
+    enabled: enabled && text.trim().length > 0,
+    placeholderData: previous => previous,
+    staleTime: 60_000,
+  });
+}
+
+export function useAnalytics(enabled = true) {
+  return useQuery({ queryKey: ['analytics'], queryFn: () => api.get<Analytics>('/analytics'), enabled });
+}
+
+export function useSwitchOrganization() {
+  return useMutation({
+    mutationFn: (organizationId: string) => api.post<LoginResult>('/auth/switch-organization', { organizationId }),
+  });
 }

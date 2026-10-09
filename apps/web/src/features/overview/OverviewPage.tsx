@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router';
 import {
   AlertCircle,
@@ -18,6 +19,9 @@ import { useCurrentRun, useRunAction } from '../../app/queries';
 import { Heading, PanelTitle, Pill, StatCard } from '../../components';
 import { count } from '../../lib/format';
 import { periodLabel, taxYearLabel } from '../../lib/period';
+
+/** The chart library loads only when a chart is shown. */
+const CostTrend = lazy(() => import('./CostTrend'));
 
 export function OverviewPage() {
   const user = useUser();
@@ -121,6 +125,11 @@ export function OverviewPage() {
         />
         <StatCard label="Net pay" value={run?.net ?? 0} icon={Landmark} tone="violet" foot="Before bank export" />
       </div>
+      {can(user.role, 'runs.read') && (
+        <Suspense fallback={null}>
+          <CostTrend />
+        </Suspense>
+      )}
       <div className="two-column">
         <section className="panel">
           <PanelTitle title="Payroll checklist" description="One clear path from inputs to reconciliation" />

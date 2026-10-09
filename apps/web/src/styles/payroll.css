@@ -17,9 +17,9 @@
   place-items: center;
   width: 27px;
   height: 27px;
-  border: 2px solid #d4ddec;
+  border: 2px solid var(--color-border-strong);
   border-radius: 50%;
-  color: #9dabc0;
+  color: var(--color-text-faint);
   font-size: 11px;
   font-weight: 800;
   background: var(--color-canvas);
@@ -27,17 +27,17 @@
 }
 .step.complete .step-circle,
 .step.current .step-circle {
-  background: #2458be;
-  border-color: #2458be;
-  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 .step-line {
   height: 2px;
   flex: 1;
-  background: #dfe6f1;
+  background: var(--color-border-strong);
 }
 .step.complete .step-line {
-  background: #2458be;
+  background: var(--color-accent);
 }
 .step:last-child .step-line {
   display: none;
@@ -49,7 +49,7 @@
 }
 .step small {
   display: block;
-  color: #9aa7bb;
+  color: var(--color-text-faint);
   font-size: 10px;
   margin-top: 3px;
 }
@@ -74,13 +74,13 @@
 }
 .table-search {
   height: 35px;
-  border: 1px solid #e2e8f2;
+  border: 1px solid var(--color-border);
   border-radius: 7px;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  color: #a6b2c3;
+  color: var(--color-text-faint);
   min-width: 230px;
   flex: 1;
   max-width: 410px;
@@ -90,21 +90,21 @@
   align-items: center;
   gap: 6px;
   border-radius: 7px;
-  border: 1px solid #dfe7f1;
+  border: 1px solid var(--color-border-strong);
   background: var(--color-surface);
-  color: #5d6f89;
+  color: var(--color-text-muted);
   font-size: 10px;
   font-weight: 800;
   padding: 9px;
 }
 .filter-chip.selected {
-  border-color: #90b0ec;
-  color: #2056b9;
-  background: #edf4ff;
+  border-color: var(--color-primary-border);
+  color: var(--color-primary);
+  background: var(--color-primary-soft);
 }
 .result-count {
   margin-left: auto;
-  color: #9aa7b9;
+  color: var(--color-text-faint);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -119,25 +119,25 @@ table {
 th {
   text-align: left;
   white-space: nowrap;
-  background: #f7f9fd;
-  color: #61728d;
+  background: var(--color-surface-muted);
+  color: var(--color-text-muted);
   font-weight: 800;
   font-size: 10px;
   padding: 11px 12px;
-  border-top: 1px solid #e7edf5;
-  border-bottom: 1px solid #e7edf5;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
 }
 td {
   padding: 12px;
-  border-bottom: 1px solid #edf0f5;
+  border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
-  color: #405372;
+  color: var(--color-text-secondary);
 }
 tbody tr {
   cursor: pointer;
 }
 tbody tr:hover {
-  background: #f8faff;
+  background: var(--color-surface-hover);
 }
 td strong,
 td small {
@@ -145,11 +145,11 @@ td small {
 }
 td strong {
   font-size: 11px;
-  color: #24365b;
+  color: var(--color-text);
 }
 td small {
   font-size: 10px;
-  color: #9aa8bd;
+  color: var(--color-text-faint);
   margin-top: 4px;
 }
 td.numeric {
@@ -157,7 +157,7 @@ td.numeric {
   font-variant-numeric: tabular-nums;
 }
 td.net-cell {
-  color: #14346f;
+  color: var(--color-text);
   font-weight: 800;
 }
 .pagination {
@@ -166,7 +166,7 @@ td.net-cell {
   align-items: center;
   gap: 10px;
   padding: 14px 18px;
-  color: #9aa7bb;
+  color: var(--color-text-faint);
   font-size: 10px;
 }
 .pagination > div {
@@ -179,10 +179,10 @@ td.net-cell {
   place-items: center;
   width: 26px;
   height: 26px;
-  border: 1px solid #e0e7f0;
+  border: 1px solid var(--color-border-strong);
   border-radius: 5px;
   background: var(--color-surface);
-  color: #4e6a98;
+  color: var(--color-text-muted);
 }
 .empty-state {
   text-align: center;
@@ -193,8 +193,8 @@ td.net-cell {
   height: 64px;
   margin: auto auto 15px;
   border-radius: 18px;
-  background: #eaf1ff;
-  color: #3261bd;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
   display: grid;
   place-items: center;
 }
@@ -204,7 +204,7 @@ td.net-cell {
 }
 .empty-state p {
   font-size: 11px;
-  color: #8d9aad;
+  color: var(--color-text-muted);
   max-width: 350px;
   margin: 0 auto 20px;
 }
@@ -217,13 +217,13 @@ td.net-cell {
   gap: 10px;
 }
 .attention-heading p {
-  color: #8c9aaf;
+  color: var(--color-text-muted);
   font-size: 10px;
   margin: 0;
 }
 .attention-count {
-  background: #ffe7e7;
-  color: #cf4251;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
   padding: 4px 6px;
   border-radius: 6px;
   height: 24px;
@@ -240,13 +240,13 @@ td.net-cell {
   display: flex;
   align-items: center;
   gap: 4px;
-  background: #f6f8fc;
+  background: var(--color-surface-muted);
   border-radius: 6px;
   padding: 6px 7px;
-  color: #6b7891;
+  color: var(--color-text-muted);
 }
 .attention-metrics span:first-child {
-  color: #cf4d52;
+  color: var(--color-danger);
 }
 .exception-list {
   display: grid;
@@ -258,18 +258,18 @@ td.net-cell {
   gap: 9px;
   border-radius: 8px;
   padding: 10px;
-  background: #fff4f4;
-  border: 1px solid #f6dfdf;
+  background: var(--color-danger-soft);
+  border: 1px solid var(--color-danger-border);
 }
 .exception-item.warning {
-  background: #fff9eb;
-  border-color: #f9ecd1;
+  background: var(--color-warning-soft);
+  border-color: var(--color-warning-border);
 }
 .exception-symbol {
-  color: #dd5661;
+  color: var(--color-danger);
 }
 .exception-item.warning .exception-symbol {
-  color: #d69a2f;
+  color: var(--color-warning);
 }
 .exception-item div:nth-child(2) {
   min-width: 0;
@@ -285,12 +285,12 @@ td.net-cell {
 .exception-item span {
   font-size: 10px;
   line-height: 1.35;
-  color: #687890;
+  color: var(--color-text-muted);
   margin-top: 3px;
 }
 .exception-item small {
   font-size: 9px;
-  color: #9cabbc;
+  color: var(--color-text-faint);
   margin: 5px 0;
 }
 .exception-item .text-button {
@@ -298,7 +298,7 @@ td.net-cell {
 }
 .more-exceptions {
   font-size: 10px;
-  color: #9aa8b8;
+  color: var(--color-text-faint);
   text-align: center;
   margin: 11px 0;
 }
@@ -310,17 +310,17 @@ td.net-cell {
 .source-note {
   display: flex;
   gap: 8px;
-  border-top: 1px solid #e9eef5;
+  border-top: 1px solid var(--color-border);
   padding-top: 15px;
   margin-top: 7px;
-  color: #61718d;
+  color: var(--color-text-muted);
 }
 .source-note strong,
 .source-note span {
   display: block;
 }
 .source-note strong {
-  color: #213759;
+  color: var(--color-text);
   font-size: 10px;
 }
 .source-note span {
@@ -333,8 +333,8 @@ td.net-cell {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #16916b;
-  background: #e9f9f1;
+  color: var(--color-success);
+  background: var(--color-success-soft);
   padding: 11px;
   border-radius: 8px;
   font-size: 10px;

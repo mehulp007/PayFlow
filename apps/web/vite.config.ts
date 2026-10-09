@@ -3,6 +3,17 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      output: {
+        // Framework code changes rarely, so it is cached separately from the app.
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router'],
+          data: ['@tanstack/react-query', 'zod'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: { '/api': process.env.PAYFLOW_API_URL ?? 'http://127.0.0.1:4000' },

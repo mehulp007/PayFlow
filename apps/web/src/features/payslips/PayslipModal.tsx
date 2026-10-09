@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { Wallet } from 'lucide-react';
+import { Download, Wallet } from 'lucide-react';
 import { useBootstrap, usePayslip } from '../../app/queries';
 import { useFeedback } from '../../app/FeedbackProvider';
 import { DetailRow, Modal } from '../../components';
+import { download } from '../../lib/api';
 import { money } from '../../lib/format';
 
 /** A printable payslip. The print stylesheet hides everything except this modal. */
@@ -15,7 +16,7 @@ export function PayslipModal({
   employeeId: string;
   onClose: () => void;
 }) {
-  const { fail } = useFeedback();
+  const { fail, notify } = useFeedback();
   const payslip = usePayslip(runId, employeeId);
   const organization = useBootstrap().data?.organization;
 
@@ -86,8 +87,18 @@ export function PayslipModal({
         <button className="button outline" onClick={onClose}>
           Close
         </button>
-        <button className="button primary" onClick={() => window.print()}>
-          Print payslip
+        <button className="button outline" onClick={() => window.print()}>
+          Print
+        </button>
+        <button
+          className="button primary"
+          onClick={() =>
+            download(`/runs/${runId}/payslip/${employeeId}/pdf`)
+              .then(() => notify('Payslip PDF downloaded.'))
+              .catch(fail)
+          }
+        >
+          <Download size={16} /> Download PDF
         </button>
       </div>
     </Modal>

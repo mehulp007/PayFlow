@@ -1,14 +1,26 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, CircleUserRound, FileText, Landmark, LogOut, MapPin, TrendingUp } from 'lucide-react';
+import { ArrowRight, BadgeCheck, CircleUserRound, FileText, Landmark, LogOut, MapPin, TrendingUp } from 'lucide-react';
 import { can, type Employee, type TaxRegime, type UpdateEmployeeBody } from '@payflow/shared';
 import { useUser } from '../../app/AuthProvider';
 import { useFeedback } from '../../app/FeedbackProvider';
-import { useBootstrap, useCurrentRun, useEmployee, useEmployeeMutations, useSalaryRevisions } from '../../app/queries';
+import {
+  useBootstrap,
+  useCurrentRun,
+  useDeclarationMutations,
+  useEmployee,
+  useEmployeeMutations,
+  useLeaveMutations,
+  useLeaveSummary,
+  useSalaryRevisions,
+  useTaxSummary,
+} from '../../app/queries';
 import { DetailRow, Drawer, Pill } from '../../components';
 import { money, titleCase } from '../../lib/format';
+import { LeaveBalances, LeaveRequestTable } from '../leave/LeaveParts';
 import { PayslipModal } from '../payslips/PayslipModal';
+import { RegimeComparison } from '../tax/RegimeComparison';
 
-export type RecordTab = 'record' | 'salary' | 'exit';
+export type RecordTab = 'record' | 'salary' | 'tax' | 'leave' | 'exit';
 const toPaise = (rupees: string) => Math.round(Number(rupees) * 100);
 const toRupees = (paise: number) => String(paise / 100);
 
@@ -56,6 +68,16 @@ export function EmployeeRecordDrawer({
               Salary history
             </button>
           )}
+          {employee.payrollScope && (
+            <>
+              <button className={tab === 'tax' ? 'selected' : ''} onClick={() => setTab('tax')}>
+                Tax
+              </button>
+              <button className={tab === 'leave' ? 'selected' : ''} onClick={() => setTab('leave')}>
+                Leave
+              </button>
+            </>
+          )}
           {canEdit && (
             <button className={tab === 'exit' ? 'selected' : ''} onClick={() => setTab('exit')}>
               Exit
@@ -64,6 +86,8 @@ export function EmployeeRecordDrawer({
         </div>
         {tab === 'record' && <RecordTabView employee={employee} canEdit={canEdit} />}
         {tab === 'salary' && <SalaryTab employee={employee} canEdit={canEdit} />}
+        {tab === 'tax' && <TaxTab employee={employee} canVerify={can(user.role, 'leave.manage')} />}
+        {tab === 'leave' && <LeaveTab employee={employee} canManage={can(user.role, 'leave.manage')} />}
         {tab === 'exit' && <ExitTab employee={employee} />}
       </div>
     </Drawer>
@@ -457,5 +481,128 @@ function ExitTab({ employee }: { employee: Employee }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** HR's view of the person's declaration and both regimes; HR verifies the declaration against proofs. */
+function TaxTab({ employee, canVerify }: { employee: Employee; canVerify: boolean }) {
+  const { notify, fail } = useFeedback();
+  const tax = useTaxSummary(employee.id);
+  const { verify } = useDeclarationMutations(employee.id);
+  const summary = tax.data;
+  const declaration = summary?.declaration;
+  if (!summary) return null;
+  return (
+    <div className="hierarchy-form">
+      <h3>Declaration · tax year {summary.taxYearLabel}</h3>
+      {declaration ? (
+        <>
+          <div className="detail-row">
+            <span>Status</span>
+            <Pill tone={declaration.status === 'verified' ? 'success' : 'warning'}>
+              {declaration.status === 'verified' ? `Verified by ${declaration.verifiedBy}` : 'Waiting for HR'}
+            </Pill>
+          </div>
+          <DetailRow
+            label="Rent"
+            value={
+              declaration.monthlyRent ? `${money(declaration.monthlyRent)} a month · ${declaration.rentCity}` : 'None'
+            }
+          />
+          {declaration.landlordPan && <DetailRow label="Landlord PAN" value={declaration.landlordPan} />}
+          <DetailRow label="Savings (s. 123)" value={money(declaration.section123)} />
+          <DetailRow label="Additional NPS (s. 124)" value={money(declaration.npsAdditional)} />
+          <DetailRow
+            label="Health insurance (s. 126)"
+            value={money(declaration.healthSelf + declaration.healthParents)}
+          />
+          <DetailRow label="Home loan interest" value={money(declaration.homeLoanInterest)} />
+          {canVerify && declaration.status !== 'verified' && (
+            <div className="drawer-actions">
+              <button
+                className="button primary"
+                disabled={verify.isPending}
+                onClick={() =>
+                  verify
+                    .mutateAsync()
+                    .then(() => notify('Declaration verified.'))
+                    .catch(fail)
+                }
+              >
+                <BadgeCheck size={16} /> Mark verified
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="info-strip">
+          No declaration for this tax year. Old-regime TDS uses only PF and professional tax.
+        </div>
+      )}
+      <h3>Regimes · {summary.regime} regime chosen</h3>
+      <RegimeComparison summary={summary} />
+    </div>
+  );
+}
+
+function LeaveTab({ employee, canManage }: { employee: Employee; canManage: boolean }) {
+  const { notify } = useFeedback();
+  const leave = useLeaveSummary(employee.id);
+  const { carryForward } = useLeaveMutations();
+  const summary = leave.data;
+  const [days, setDays] = useState<string | null>(null);
+  if (!summary) return null;
+  const earned = summary.balances.find(balance => balance.type === 'earned');
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    try {
+      await carryForward.mutateAsync({ employeeId: employee.id, days: Number(days ?? earned?.carriedForward ?? 0) });
+      notify('Carried-forward leave saved.');
+      setDays(null);
+    } catch {
+      // Shown inline from the mutation state.
+    }
+  }
+
+  return (
+    <div className="hierarchy-form">
+      <h3>Balances · {summary.year}</h3>
+      <LeaveBalances summary={summary} />
+      <DetailRow
+        label="Days worked last year"
+        value={`${summary.earned.daysWorkedLastYear}${summary.earned.qualifies ? '' : ' · below 180, no earned leave yet'}`}
+      />
+      {canManage && (
+        <form onSubmit={save}>
+          <div className="hierarchy-form-grid">
+            <label>
+              Earned leave carried forward
+              <input
+                type="number"
+                min="0"
+                max="30"
+                value={days ?? String(earned?.carriedForward ?? 0)}
+                onChange={event => setDays(event.target.value)}
+              />
+            </label>
+            <div className="inline-action">
+              <button className="button outline" type="submit" disabled={days === null || carryForward.isPending}>
+                Save
+              </button>
+            </div>
+          </div>
+          {carryForward.error && <div className="message error">{carryForward.error.message}</div>}
+        </form>
+      )}
+      <h3>Requests</h3>
+      <LeaveRequestTable
+        requests={summary.requests}
+        showPerson={false}
+        canDecide={canManage}
+        canCancel={canManage}
+        empty="No leave requests."
+      />
+    </div>
   );
 }

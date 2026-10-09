@@ -1,12 +1,105 @@
-/* Design tokens. Phase 3 adds a dark theme by redefining these values. */
+/*
+ * Design tokens. Every colour in the app comes from here; dark mode redefines the same names, so layouts and
+ * components never change between themes. Light values are the original PayFlow palette.
+ */
 :root {
   --font-body: 'DM Sans', system-ui, sans-serif;
   --font-heading: Manrope, system-ui, sans-serif;
-  --color-primary: #2454bd;
-  --color-primary-hover: #1946a9;
-  --color-text: #142247;
+  color-scheme: light;
+
+  /* Surfaces */
   --color-canvas: #f5f7fb;
   --color-surface: #fff;
+  --color-surface-muted: #f7f9fd;
+  --color-surface-hover: #f5f8ff;
+  --color-surface-sunken: #edf0f5;
   --color-border: #e4eaf3;
-  --color-text-muted: #8190a8;
+  --color-border-strong: #dce4ef;
+
+  /* Text */
+  --color-text: #142247;
+  --color-text-secondary: #4d6282;
+  --color-text-muted: #7d8aa0;
+  --color-text-faint: #9aa8ba;
+
+  /* Brand blue: `primary` for text and icons, `accent` for filled controls */
+  --color-primary: #2458bb;
+  --color-primary-deep: #1b3f83;
+  --color-primary-soft: #edf3ff;
+  --color-primary-tint: #dceaff;
+  --color-primary-border: #d8e5fa;
+  --color-accent: #2454bd;
+  --color-accent-hover: #1946a9;
+  --color-accent-light: #6b9ee9;
+  --color-on-accent: #fff;
+
+  /* Status */
+  --color-success: #16916b;
+  --color-success-soft: #e9f9f1;
+  --color-danger: #cf4251;
+  --color-danger-soft: #fff1f1;
+  --color-danger-border: #f4d8d8;
+  --color-warning: #be7d1d;
+  --color-warning-soft: #fff7e8;
+  --color-warning-border: #f2e3c7;
+  --color-violet: #7254c7;
+  --color-violet-soft: #eae4ff;
+
+  /* Stat card tints and the extra chart colour */
+  --tint-blue: #f1f6ff;
+  --tint-mint: #effaf6;
+  --tint-rose: #fff2f3;
+  --tint-violet: #f6f2ff;
+  --chart-sky: #2f9bd6;
+
+  --shadow-popover: 0 16px 40px #10315c26, 0 2px 6px #10315c14;
+  --overlay: #0d1c3b73;
+}
+
+/* Kept in step with `:root` above; selected by the toggle (data-theme) set before the first paint. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-canvas: #0c1322;
+  --color-surface: #131c2e;
+  --color-surface-muted: #172135;
+  --color-surface-hover: #1b2740;
+  --color-surface-sunken: #1a2439;
+  --color-border: #233049;
+  --color-border-strong: #2e3c58;
+
+  --color-text: #e7ecf6;
+  --color-text-secondary: #b6c1d6;
+  --color-text-muted: #8d9ab2;
+  --color-text-faint: #6b7892;
+
+  --color-primary: #8eadf6;
+  --color-primary-deep: #bfd0fb;
+  --color-primary-soft: #1b2949;
+  --color-primary-tint: #22345e;
+  --color-primary-border: #2f4675;
+  --color-accent: #3d6ddc;
+  --color-accent-hover: #5280e6;
+  --color-accent-light: #6f93e6;
+  --color-on-accent: #fff;
+
+  --color-success: #4fc99c;
+  --color-success-soft: #11302a;
+  --color-danger: #f17c87;
+  --color-danger-soft: #35191f;
+  --color-danger-border: #5a2a33;
+  --color-warning: #e7b05a;
+  --color-warning-soft: #32270f;
+  --color-warning-border: #57431c;
+  --color-violet: #a993f3;
+  --color-violet-soft: #2b2450;
+
+  --tint-blue: #172645;
+  --tint-mint: #13302b;
+  --tint-rose: #301b24;
+  --tint-violet: #241f45;
+  --chart-sky: #4cb6ee;
+
+  --shadow-popover: 0 16px 40px #00000066, 0 2px 6px #00000040;
+  --overlay: #02060fb3;
 }

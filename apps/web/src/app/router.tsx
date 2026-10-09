@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router';
+import { can, type Permission } from '@payflow/shared';
 import { useAuth, useUser } from './AuthProvider';
 import { AppShell } from './layout/AppShell';
 import { LoginPage } from '../features/auth/LoginPage';
@@ -15,6 +16,14 @@ import { CompliancePage } from '../features/compliance/CompliancePage';
 import { ReportsPage } from '../features/reports/ReportsPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
 import { EmployeePortal } from '../features/portal/EmployeePortal';
+import { PortalLeave, PortalPayslips, PortalTax } from '../features/portal/PortalPages';
+import { AuditPage } from '../features/audit/AuditPage';
+import { LeavePage } from '../features/leave/LeavePage';
+
+/** Charts are the heaviest dependency, so the analytics page is its own bundle. */
+const AnalyticsPage = lazy(() =>
+  import('../features/analytics/AnalyticsPage').then(module => ({ default: module.AnalyticsPage })),
+);
 
 function RequireAuth() {
   const { user, checking } = useAuth();
@@ -30,9 +39,14 @@ function GuestOnly({ children }: { children: ReactNode }) {
   return user ? <Navigate to="/" replace /> : children;
 }
 
-/** Employees have one page: their own record and payslip. */
+/** Employees have their own portal under /me. */
 function StaffOnly() {
   return useUser().role === 'employee' ? <Navigate to="/me" replace /> : <Outlet />;
+}
+
+/** Pages that need a permission beyond being staff (the API enforces the same rule). */
+function Requires({ permission, children }: { permission: Permission; children: ReactNode }) {
+  return can(useUser().role, permission) ? children : <Navigate to="/overview" replace />;
 }
 
 function HomeRedirect() {
@@ -65,6 +79,9 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <HomeRedirect /> },
           { path: 'me', element: <EmployeePortal /> },
+          { path: 'me/payslips', element: <PortalPayslips /> },
+          { path: 'me/tax', element: <PortalTax /> },
+          { path: 'me/leave', element: <PortalLeave /> },
           {
             element: <StaffOnly />,
             children: [
@@ -74,6 +91,32 @@ export const router = createBrowserRouter([
               { path: 'hierarchy', element: <HierarchyPage /> },
               { path: 'payroll', element: <RunsPage /> },
               { path: 'payroll/:runId', element: <PayrollPage /> },
+              {
+                path: 'leave',
+                element: (
+                  <Requires permission="leave.manage">
+                    <LeavePage />
+                  </Requires>
+                ),
+              },
+              {
+                path: 'analytics',
+                element: (
+                  <Requires permission="runs.read">
+                    <Suspense fallback={null}>
+                      <AnalyticsPage />
+                    </Suspense>
+                  </Requires>
+                ),
+              },
+              {
+                path: 'audit',
+                element: (
+                  <Requires permission="audit.read">
+                    <AuditPage />
+                  </Requires>
+                ),
+              },
               { path: 'compliance', element: <CompliancePage /> },
               { path: 'reports', element: <ReportsPage /> },
               { path: 'settings', element: <SettingsPage /> },

@@ -1,30 +1,35 @@
 import { useState } from 'react';
-import type { TaxRegime } from '@payflow/shared';
+import { useNavigate } from 'react-router';
+import { ArrowRight, CalendarCheck2, Download, FileText } from 'lucide-react';
 import { useUser } from '../../app/AuthProvider';
-import { useReportError } from '../../app/FeedbackProvider';
-import { useCurrentRun, useEmployee, useEmployeeMutations, useMyPayslips, usePayslip } from '../../app/queries';
+import { useFeedback, useReportError } from '../../app/FeedbackProvider';
+import { useCurrentRun, useEmployee, useMyPayslips, usePayslip } from '../../app/queries';
 import { DetailRow } from '../../components';
+import { download } from '../../lib/api';
 import { money } from '../../lib/format';
 import { periodLabel } from '../../lib/period';
 
-/** Self service: the signed-in employee's record, tax regime choice and payslip. */
+/** Self service home: the signed-in employee's record and latest payslip. */
 export function EmployeePortal() {
   const user = useUser();
+  const navigate = useNavigate();
+  const { notify, fail } = useFeedback();
   const { run } = useCurrentRun();
   const employee = useEmployee(user.employeeId).data;
   const latest = useMyPayslips(Boolean(user.employeeId)).data?.[0];
   const [showPayslip, setShowPayslip] = useState(false);
   const payslip = usePayslip(latest?.runId, showPayslip ? user.employeeId : null);
-  const { update } = useEmployeeMutations();
-  useReportError(payslip.error ?? update.error);
+  useReportError(payslip.error);
 
-  const status = run?.status ?? 'draft';
   const period = run ? periodLabel(run.year, run.month) : '';
   const month = latest ? periodLabel(latest.year, latest.month).split(' ')[0] : period.split(' ')[0];
   const contractor = employee?.payrollScope === false;
   const slip = payslip.data?.line;
-  const chooseRegime = (taxRegime: TaxRegime) =>
-    user.employeeId && update.mutate({ id: user.employeeId, changes: { taxRegime } });
+  const downloadPdf = () =>
+    latest &&
+    download(`/runs/${latest.runId}/payslip/${user.employeeId}/pdf`)
+      .then(() => notify('Payslip PDF downloaded.'))
+      .catch(fail);
 
   return (
     <>
@@ -32,7 +37,7 @@ export function EmployeePortal() {
         <div>
           <div className="eyebrow">EMPLOYEE SELF SERVICE · {period.toUpperCase()}</div>
           <h1>Hello, {employee?.name.split(' ')[0] ?? 'there'}</h1>
-          <p>Your pay, tax choice and employment details.</p>
+          <p>Your pay, tax choice, leave and employment details.</p>
         </div>
       </div>
       <div className="overview-banner">
@@ -49,9 +54,16 @@ export function EmployeePortal() {
                   : 'Available after Finance approval.'}
           </p>
           {!contractor && (
-            <button className="button white" onClick={() => (showPayslip ? payslip.refetch() : setShowPayslip(true))}>
-              View my payslip
-            </button>
+            <div className="banner-actions">
+              <button className="button white" onClick={() => (showPayslip ? payslip.refetch() : setShowPayslip(true))}>
+                View my payslip
+              </button>
+              {latest && (
+                <button className="button ghost-white" onClick={downloadPdf}>
+                  <Download size={16} /> PDF
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -67,32 +79,22 @@ export function EmployeePortal() {
             <DetailRow label="Work state" value={employee?.state ?? '—'} />
             <DetailRow label="Working days" value={employee?.workingDays ?? '—'} />
             <DetailRow label="Unpaid days" value={employee?.unpaidDays ?? '—'} />
-            <DetailRow label="Leave balance" value={`${employee?.leaveBalanceDays ?? '—'} days`} />
             {!contractor && (
               <>
-                <DetailRow label="Tax regime" value={employee?.taxRegime ?? '—'} />
+                <DetailRow label="Earned leave left" value={`${employee?.leaveBalanceDays ?? '—'} days`} />
+                <DetailRow label="Tax regime" value={employee ? `${employee.taxRegime} regime` : '—'} />
                 <DetailRow
                   label="Bank account"
                   value={employee?.bankAccountLast4 ? `•••• ${employee.bankAccountLast4}` : 'Needs verification'}
                 />
-                <p>Tax regime selection for this pay run:</p>
                 <div className="header-buttons">
-                  <button
-                    className="button outline"
-                    disabled={status !== 'draft' || update.isPending}
-                    onClick={() => chooseRegime('new')}
-                  >
-                    New regime
+                  <button className="button outline" onClick={() => navigate('/me/tax')}>
+                    <FileText size={16} /> Compare regimes
                   </button>
-                  <button
-                    className="button outline"
-                    disabled={status !== 'draft' || update.isPending}
-                    onClick={() => chooseRegime('old')}
-                  >
-                    Old regime
+                  <button className="button outline" onClick={() => navigate('/me/leave')}>
+                    <CalendarCheck2 size={16} /> Request leave
                   </button>
                 </div>
-                {status !== 'draft' && <div className="info-strip">Tax choice is locked after calculation.</div>}
               </>
             )}
           </div>
@@ -100,6 +102,11 @@ export function EmployeePortal() {
         <section className="panel">
           <div className="panel-title">
             <h2>{slip ? 'Payslip breakdown' : 'Pay status'}</h2>
+            {latest && (
+              <button className="text-button" onClick={() => navigate('/me/payslips')}>
+                All payslips <ArrowRight size={15} />
+              </button>
+            )}
           </div>
           <div className="panel-rows">
             {slip ? (

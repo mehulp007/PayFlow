@@ -28,3 +28,30 @@ export function runTone(status: string): 'neutral' | 'info' | 'success' {
   if (status === 'draft') return 'neutral';
   return ['approved', 'paid', 'closed'].includes(status) ? 'success' : 'info';
 }
+
+/** Parses API timestamps, including PostgreSQL's "2026-10-09 16:17:11.265+00" text form. */
+export function parseTimestamp(value: string): Date {
+  const iso = value.includes('T') ? value : value.replace(' ', 'T');
+  return new Date(/[+-]\d\d$/.test(iso) ? `${iso}:00` : iso);
+}
+
+export const dateTime = (value: string) =>
+  parseTimestamp(value).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+
+/** "just now", "5 min ago", "3 h ago", then the date. */
+export function timeAgo(value: string, now = Date.now()): string {
+  const seconds = Math.max(0, (now - parseTimestamp(value).getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)} h ago`;
+  return parseTimestamp(value).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+}
+
+/** "2026-10-19" → "19 Oct 2026" */
+export const shortDate = (date: string) =>
+  new Date(`${date}T00:00:00Z`).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });

@@ -132,7 +132,7 @@ export function CompliancePage() {
           </div>
           <div className="control-metric">
             <span>Rule version</span>
-            <strong>IN-TY2026-27-v2</strong>
+            <strong>{rules?.ruleVersion.split('+')[0] ?? '—'}</strong>
           </div>
           <div className="info-strip">
             <LockKeyhole size={17} /> Production filing formats and state rates require payroll-specialist sign-off.

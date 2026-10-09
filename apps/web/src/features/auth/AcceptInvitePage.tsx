@@ -6,7 +6,10 @@ import { useAuth } from '../../app/AuthProvider';
 import { api } from '../../lib/api';
 import { AuthLayout } from './AuthLayout';
 
-/** The invitation link: the invitee chooses their own password, so none is ever shared. */
+/**
+ * The invitation link: a new invitee chooses their own password, so none is ever shared. Someone who already
+ * uses PayFlow confirms their existing password and the organization joins their organization switcher.
+ */
 export function AcceptInvitePage() {
   const { adopt } = useAuth();
   const navigate = useNavigate();
@@ -28,10 +31,17 @@ export function AcceptInvitePage() {
   async function accept(event: FormEvent) {
     event.preventDefault();
     setError('');
-    if (password !== confirm) return setError('The passwords do not match');
+    const existing = invitation?.existingAccount;
+    if (!existing && password !== confirm) return setError('The passwords do not match');
     setBusy(true);
     try {
-      adopt(await api.post<LoginResult>('/invitations/accept', { token, displayName, password }));
+      adopt(
+        await api.post<LoginResult>('/invitations/accept', {
+          token,
+          password,
+          ...(existing ? {} : { displayName }),
+        }),
+      );
       navigate('/', { replace: true });
     } catch (reason) {
       setError((reason as Error).message);
@@ -45,7 +55,11 @@ export function AcceptInvitePage() {
       title={invitation ? `Join ${invitation.organizationName}` : 'Accept your invitation'}
       intro={
         invitation
-          ? `You are invited as ${ROLE_LABELS[invitation.role]} with ${invitation.email}. Choose a private password.`
+          ? `You are invited as ${ROLE_LABELS[invitation.role]} with ${invitation.email}. ${
+              invitation.existingAccount
+                ? 'You already use PayFlow: confirm your password to add this organization.'
+                : 'Choose a private password.'
+            }`
           : 'Checking your invitation link…'
       }
       aside={
@@ -56,7 +70,24 @@ export function AcceptInvitePage() {
         </>
       }
     >
-      {invitation ? (
+      {invitation?.existingAccount ? (
+        <form onSubmit={accept} className="auth-form">
+          <label>
+            Your PayFlow password
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={event => setPassword(event.target.value)}
+              required
+            />
+          </label>
+          {error && <div className="auth-error">{error}</div>}
+          <button type="submit" className="button primary" disabled={busy}>
+            {busy ? 'Joining…' : 'Add organization'} <ArrowRight size={17} />
+          </button>
+        </form>
+      ) : invitation ? (
         <form onSubmit={accept} className="auth-form">
           <label>
             Your name

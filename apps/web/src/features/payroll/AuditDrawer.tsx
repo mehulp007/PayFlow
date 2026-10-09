@@ -1,4 +1,5 @@
 import { useAudit } from '../../app/queries';
+import { dateTime } from '../../lib/format';
 import { Drawer } from '../../components';
 
 export function AuditDrawer({ runId, onClose }: { runId: string | undefined; onClose: () => void }) {
@@ -13,7 +14,7 @@ export function AuditDrawer({ runId, onClose }: { runId: string | undefined; onC
               <div>
                 <strong>{event.action.replaceAll('.', ' · ')}</strong>
                 <span>
-                  {event.actor} · {new Date(event.createdAt).toLocaleString('en-IN')}
+                  {event.actor} · {dateTime(event.createdAt)}
                 </span>
                 <small>
                   {Object.entries(event.details)

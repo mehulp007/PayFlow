@@ -45,18 +45,19 @@ const withBody = (method: string, body: unknown): RequestInit => ({ method, body
 export const api = {
   get: <T>(path: string) => send(path).then(json<T>),
   post: <T>(path: string, body?: unknown) => send(path, withBody('POST', body)).then(json<T>),
+  put: <T>(path: string, body: unknown) => send(path, withBody('PUT', body)).then(json<T>),
   patch: <T>(path: string, body: unknown) => send(path, withBody('PATCH', body)).then(json<T>),
   delete: <T>(path: string) => send(path, { method: 'DELETE' }).then(json<T>),
 };
 
-/** Downloads a file response (CSV exports) using the session token. */
+/** Downloads a file response (CSV exports, PDF payslips) using the session token. */
 export async function download(path: string): Promise<void> {
   const response = await send(path);
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'report.csv';
+  anchor.download = response.headers.get('content-disposition')?.match(/filename="([^"]+)"/)?.[1] ?? 'download';
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

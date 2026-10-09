@@ -19,6 +19,16 @@ select,
 textarea {
   font: inherit;
 }
+/* Form controls follow the theme unless a component styles them. */
+input,
+select,
+textarea {
+  color: inherit;
+  background-color: var(--color-surface);
+}
+a {
+  color: var(--color-primary);
+}
 button {
   cursor: pointer;
 }
