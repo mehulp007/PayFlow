@@ -13,6 +13,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 const STAFF: Role[] = ['admin', 'hr-operator', 'payroll-operator', 'finance-approver', 'auditor'];
 const PREPARERS: Role[] = ['admin', 'hr-operator', 'payroll-operator'];
 const PEOPLE_EDITORS: Role[] = ['admin', 'hr-operator'];
+const FINANCE: Role[] = ['finance-approver'];
 
 /** Single source of truth for what each role may do, used by the API and to shape the UI. */
 export const PERMISSIONS = {
@@ -20,13 +21,17 @@ export const PERMISSIONS = {
   'employees.write': PEOPLE_EDITORS,
   'hierarchy.read': STAFF,
   'runs.read': STAFF,
+  'runs.create': PREPARERS,
   'runs.prepare': PREPARERS,
-  'runs.approve': ['finance-approver'],
-  'runs.reconcile': ['finance-approver'],
+  'runs.approve': FINANCE,
+  'runs.reject': FINANCE,
+  'runs.reconcile': FINANCE,
+  'runs.close': ['admin', 'finance-approver'],
   'reports.export': STAFF,
   'audit.read': STAFF,
+  'compliance.read': STAFF,
   'users.manage': ['admin'],
-  'demo.reset': ['admin'],
+  'organization.manage': ['admin'],
 } satisfies Record<string, Role[]>;
 export type Permission = keyof typeof PERMISSIONS;
 
