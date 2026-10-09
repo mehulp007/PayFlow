@@ -5,8 +5,9 @@ records and hierarchy, CSV input import with validation, salary calculation (inc
 deductions), exception review, maker-checker approval, payslips, statutory preparation reports and an audit trail.
 Employees get a self-service portal for their own record, tax-regime choice and payslip.
 
-> **Synthetic data only.** PayFlow is a portfolio project. Its calculation rules are a starter set and its exports
-> are not government or bank upload formats. See [compliance notes](docs/compliance-notes.md).
+> **Synthetic data only.** PayFlow is a portfolio project. Its rules were reviewed against Indian regulations in
+> October 2026, but it is not a certified payroll product and its exports are not government or bank upload
+> formats. See [compliance notes](docs/compliance-notes.md).
 
 ## Roadmap
 
@@ -15,6 +16,7 @@ PayFlow is being rebuilt from its first prototype in phases. Each phase is commi
 | Phase | Scope | Status |
 |---|---|---|
 | 0 · Baseline & cleanup | Rebrand to PayFlow, remove hosting/mobile code, run locally with zero setup | ✅ Done |
+| Compliance review | Rules updated to October 2026 regulations: Labour Codes wage definition, EPF ₹25,000 ceiling with the September split, ESI period rules, state PT/LWF | ✅ Done |
 | 1 · Engineering foundation | Shared Zod schemas, Drizzle migrations, modular Fastify API, React Router + TanStack Query, readable components, Vitest + API integration tests, CI | ⏳ Next |
 | 2 · Multi-tenant sandbox | Sign up and create an organization, start empty or load a sample company, tenant isolation, invitations, any pay period, salary revisions, state rule tables | Planned |
 | 3 · Features | Payslip PDFs and history, tax-regime calculator, analytics dashboard, leave & attendance, notifications, Ctrl-K palette, dark mode, audit log page | Planned |
@@ -79,9 +81,15 @@ To use an external PostgreSQL database instead of the embedded one, set `DATABAS
 
 ## Features
 
-- **Calculation engine**: pro-rata pay and loss of pay, new and old tax regimes with rebate, marginal relief,
-  surcharge and cess, monthly TDS from an annual projection, EPF/EPS/EDLI with an effective-dated wage ceiling,
-  ESI, and professional tax and labour welfare fields.
+- **Calculation engine** (rule version `IN-TY2026-27-v2`, reviewed October 2026):
+  - Income-tax Act, 2025: both regimes, the ₹60,000 rebate with marginal relief, surcharge and cess, and monthly
+    TDS (s. 392) from a year-to-date projection.
+  - Labour Codes "wages" with the 50% exclusion cap.
+  - EPF/EPS/EDLI: the ₹25,000 ceiling from 17 September 2026 with the EPFO day-split for September, EPS exit at
+    58, and admin charges.
+  - ESI: contribution-period continuation and the ₹176/day exemption.
+  - Professional tax and labour welfare fund slabs for Karnataka, Maharashtra, Tamil Nadu, West Bengal and Haryana.
+  - The employer cost of every line.
 - **Payroll controls**: CSV validation with preview, inputs locked after calculation, blocking exceptions,
   separate finance approval, and an audit event for every key action.
 - **People**: a searchable directory, an 8-level position hierarchy with five employment types, and contractors
@@ -103,6 +111,6 @@ To use an external PostgreSQL database instead of the embedded one, set `DATABAS
 |---|---|
 | `npm run dev` | Start the API and web app together |
 | `npm run typecheck` | Type-check every workspace |
-| `npm test` | Run the calculation library tests |
+| `npm test` | Run the calculation library tests (30 statutory rule cases) |
 | `npm run build` | Production build of all workspaces |
 | `npm run smoke` | End-to-end API check against a running local API (full run, access control, approval gate) |
