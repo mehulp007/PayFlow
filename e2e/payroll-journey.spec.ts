@@ -4,7 +4,7 @@ const PASSWORD = 'E2E-Password-2026!';
 
 async function signIn(page: Page, username: string) {
   await page.goto('/login');
-  await page.getByPlaceholder('Your username').fill(username);
+  await page.getByPlaceholder('you@company.com').fill(username);
   await page.getByPlaceholder('Your password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
 }
@@ -12,6 +12,12 @@ async function signIn(page: Page, username: string) {
 async function signOut(page: Page) {
   await page.getByRole('button', { name: 'Sign out' }).click();
   await expect(page).toHaveURL(/\/login$/);
+}
+
+async function openOctoberRun(page: Page) {
+  await page.getByRole('link', { name: 'Payroll Runs' }).click();
+  await page.getByRole('row', { name: /October 2026/ }).click();
+  await expect(page.getByRole('heading', { name: 'October 2026 payroll' })).toBeVisible();
 }
 
 /** Verifies every visible missing-bank exception, recalculating until none remain. */
@@ -28,24 +34,32 @@ async function clearBankExceptions(page: Page) {
     }
     await page.getByRole('button', { name: 'Calculate', exact: true }).click();
     await expect(page.locator('.toast')).toContainText('Payroll calculated');
+    // Lists refresh in the background after the toast; read the next round from fresh data.
+    await page.waitForLoadState('networkidle');
   }
 }
 
-test('prepare, approve and pay a payroll run across roles', async ({ page }) => {
+/** Each run of the journey starts from the freshly generated Aster Group sample. */
+test.beforeEach(async ({ request }) => {
+  const login = await request.post('/api/auth/login', { data: { username: 'admin', password: PASSWORD } });
+  const { token } = await login.json();
+  const reset = await request.post('/api/organization/reset-sample', { headers: { authorization: `Bearer ${token}` } });
+  expect(reset.status()).toBe(200);
+});
+
+test('prepare, send back, approve, pay and close a run across roles', async ({ page }) => {
   await signIn(page, 'hr');
   await expect(page.getByRole('heading', { name: 'Good morning, payroll team' })).toBeVisible();
 
-  // HR prepares the run.
+  // HR prepares October: twelve new joiners have no bank details yet.
   await page.getByRole('button', { name: 'Open payroll run' }).click();
-  await expect(page).toHaveURL(/\/payroll/);
-  await expect(page.getByRole('heading', { name: 'September 2026 payroll' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'October 2026 payroll' })).toBeVisible();
   await page.getByRole('button', { name: 'Calculate', exact: true }).click();
   await expect(page.locator('.attention-metrics')).toContainText('12 blocking');
-  await expect(page.locator('tbody tr').first()).toContainText('Blocking');
 
-  // Each line explains its calculation, including the September 2026 EPF ceiling split.
+  // Each line explains its calculation and the rule pack used.
   await page.locator('tbody tr').first().click();
-  await expect(page.locator('.calculation-meta')).toContainText('EPF wage ceiling split for September 2026');
+  await expect(page.locator('.calculation-meta')).toContainText('Rule IN-TY2026-27-v2');
   await page.keyboard.press('Escape');
 
   await clearBankExceptions(page);
@@ -54,18 +68,33 @@ test('prepare, approve and pay a payroll run across roles', async ({ page }) => 
   await expect(page.locator('.page-heading .pill')).toHaveText('approval pending');
   await signOut(page);
 
-  // Finance approves and reconciles; HR could not.
+  // Finance sends it back with a note; payroll resubmits.
   await signIn(page, 'finance');
-  await page.getByRole('link', { name: 'Payroll Runs' }).click();
+  await openOctoberRun(page);
+  await page.getByRole('button', { name: 'Send back with a note' }).click();
+  await page.getByPlaceholder('e.g. Recheck the October bonus file').fill('Please confirm the new joiners');
+  await page.getByRole('button', { name: 'Send back', exact: true }).click();
+  await expect(page.locator('.notice')).toContainText('Please confirm the new joiners');
+  await signOut(page);
+
+  await signIn(page, 'payroll');
+  await openOctoberRun(page);
+  await page.getByRole('button', { name: 'Send for approval' }).click();
+  await expect(page.locator('.page-heading .pill')).toHaveText('approval pending');
+  await signOut(page);
+
+  // Finance approves, records payment and closes the period.
+  await signIn(page, 'finance');
+  await openOctoberRun(page);
   await page.getByRole('button', { name: 'Approve payroll' }).click();
   await page.getByPlaceholder('Optional note for the approval record').fill('Totals checked in end-to-end test');
   await page.getByRole('button', { name: 'Confirm approval' }).click();
   await expect(page.locator('.page-heading .pill')).toHaveText('approved');
   await page.getByRole('button', { name: 'Simulate reconciliation' }).click();
-  await expect(page.locator('.approved-box')).toContainText('Demo payroll reconciled');
-
+  await page.getByRole('button', { name: 'Close period' }).click();
+  await expect(page.locator('.page-heading .pill')).toHaveText('closed');
   await page.getByRole('button', { name: 'Audit trail' }).click();
-  await expect(page.locator('.audit-list')).toContainText('payroll · approved');
+  await expect(page.locator('.audit-list')).toContainText('payroll · sent_back');
   await page.keyboard.press('Escape');
   await signOut(page);
 

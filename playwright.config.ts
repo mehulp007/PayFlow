@@ -24,6 +24,7 @@ export default defineConfig({
         PAYFLOW_DATA_DIRECTORY: 'memory',
         PAYFLOW_SEED_SIZE: '200',
         PAYFLOW_DEMO_PASSWORD: 'E2E-Password-2026!',
+        PAYFLOW_LOGIN_RATE_LIMIT: '1000',
       },
     },
     {
