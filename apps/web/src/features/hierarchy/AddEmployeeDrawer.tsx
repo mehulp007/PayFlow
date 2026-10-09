@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { TOP_POSITION_LEVEL, type Employee, type EmploymentType, type HierarchySummary } from '@payflow/shared';
-import { useCreateEmployee, useManagers } from '../../app/queries';
+import { useEmployeeMutations, useManagers } from '../../app/queries';
 import { Drawer } from '../../components';
 import { titleCase } from '../../lib/format';
 
@@ -11,15 +11,14 @@ interface Form {
   positionLevel: number;
   jobTitle: string;
   department: string;
-  branch: string;
-  state: string;
+  branchId: string;
   managerId: string;
   joinDate: string;
   dateOfBirth: string;
   gender: string;
   workEmail: string;
   phone: string;
-  payGroup: string;
+  payGroupId: string;
   monthlyBasic: string;
   monthlyHra: string;
   monthlySpecial: string;
@@ -28,28 +27,27 @@ interface Form {
   esiMember: boolean;
 }
 
-const INITIAL: Form = {
+const initialForm = (summary: HierarchySummary): Form => ({
   name: '',
   employmentType: 'permanent',
   positionLevel: 1,
   jobTitle: 'Associate',
   department: 'Operations',
-  branch: 'Bengaluru',
-  state: 'Karnataka',
+  branchId: summary.branches[0]?.id ?? '',
   managerId: '',
-  joinDate: '2026-09-01',
+  joinDate: '2026-10-01',
   dateOfBirth: '1995-01-01',
   gender: '',
   workEmail: '',
   phone: '',
-  payGroup: 'General',
+  payGroupId: summary.payGroups[0]?.id ?? '',
   monthlyBasic: '18000',
   monthlyHra: '9000',
   monthlySpecial: '7000',
   leaveBalanceDays: '12',
   pfMember: true,
   esiMember: false,
-};
+});
 const toPaise = (rupees: string) => Math.round(Number(rupees) * 100);
 
 export function AddEmployeeDrawer({
@@ -61,11 +59,11 @@ export function AddEmployeeDrawer({
   onClose: () => void;
   onCreated: (employee: Employee) => void;
 }) {
-  const [form, setForm] = useState<Form>(INITIAL);
+  const [form, setForm] = useState<Form>(() => initialForm(summary));
   const [managerSearch, setManagerSearch] = useState('');
   const isTop = form.positionLevel === TOP_POSITION_LEVEL;
   const managers = useManagers(form.positionLevel, managerSearch, !isTop);
-  const create = useCreateEmployee();
+  const { create } = useEmployeeMutations();
   const change = (patch: Partial<Form>) => setForm(current => ({ ...current, ...patch }));
   const contractor = form.employmentType === 'contractor';
 
@@ -202,21 +200,17 @@ export function AddEmployeeDrawer({
         <div className="hierarchy-form-grid">
           <label>
             Branch
-            <select
-              value={form.branch}
-              onChange={event => {
-                const found = summary.branches.find(item => item.branch === event.target.value);
-                if (found) change({ branch: found.branch, state: found.state });
-              }}
-            >
+            <select value={form.branchId} onChange={event => change({ branchId: event.target.value })}>
               {summary.branches.map(item => (
-                <option key={item.branch}>{item.branch}</option>
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
               ))}
             </select>
           </label>
           <label>
             Work state
-            <input value={form.state} readOnly />
+            <input value={summary.branches.find(item => item.id === form.branchId)?.state ?? ''} readOnly />
           </label>
         </div>
         <div className="hierarchy-form-grid">
@@ -313,9 +307,12 @@ export function AddEmployeeDrawer({
               </label>
               <label>
                 Pay group
-                <select value={form.payGroup} onChange={event => change({ payGroup: event.target.value })}>
-                  <option>General</option>
-                  <option>Operations</option>
+                <select value={form.payGroupId} onChange={event => change({ payGroupId: event.target.value })}>
+                  {summary.payGroups.map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -351,8 +348,8 @@ export function AddEmployeeDrawer({
           />
         </label>
         <div className="info-strip">
-          New records start with 30 working days in the current run. Attendance can be adjusted by importing inputs
-          before calculation.
+          Open pay runs include new people automatically, with days before the join date unpaid. Attendance can be
+          adjusted by importing inputs before calculation.
         </div>
         <div className="drawer-actions">
           <button className="button primary" type="submit" disabled={create.isPending}>

@@ -329,3 +329,28 @@
   font-size: 12px;
   font-weight: 700;
 }
+.modal select,
+.modal input[type='date'],
+.modal input[type='month'],
+.modal input[type='text'],
+.modal input[type='email'] {
+  border: 1px solid #dce4ef;
+  border-radius: 8px;
+  padding: 10px 11px;
+  color: #273c62;
+  background: var(--color-surface);
+  outline: none;
+}
+.modal .auth-error {
+  margin-top: 14px;
+}
+.drawer-tabs {
+  margin: 18px 0 4px;
+}
+.hierarchy-form h3 svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.hierarchy-form table {
+  min-width: 0;
+}

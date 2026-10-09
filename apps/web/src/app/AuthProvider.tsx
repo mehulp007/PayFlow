@@ -10,6 +10,8 @@ interface AuthContextValue {
   signOut(): Promise<void>;
   /** Clears the local session without calling the API (after a password change ends all sessions). */
   forget(): void;
+  /** Switches to a session the API just issued (sign-up, accepted invitation, or "View as"). */
+  adopt(result: LoginResult): void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -44,6 +46,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       checking,
       forget,
+      adopt(result) {
+        queryClient.clear();
+        sessionToken.set(result.token);
+        setUser(result.user);
+      },
       async signIn(username, password) {
         const result = await api.post<LoginResult>('/auth/login', { username, password });
         queryClient.clear();

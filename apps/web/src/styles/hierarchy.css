@@ -195,6 +195,7 @@
   margin: 20px 0 10px;
 }
 .hierarchy-form > label,
+.hierarchy-form form > label,
 .hierarchy-form-grid > label {
   display: grid;
   gap: 6px;

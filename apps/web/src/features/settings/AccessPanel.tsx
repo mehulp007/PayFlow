@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { LockKeyhole, Users } from 'lucide-react';
+import { Link2, LockKeyhole, MailPlus, Users } from 'lucide-react';
 import { can, ROLE_LABELS, ROLES, type Role, type User } from '@payflow/shared';
 import { useAuth, useUser } from '../../app/AuthProvider';
-import { useAccountMutations, useUsers } from '../../app/queries';
-import { PanelTitle } from '../../components';
+import { useAccountMutations, useInvitations, useUsers } from '../../app/queries';
+import { PanelTitle, Pill } from '../../components';
 
-/** Admins create and manage accounts; everyone can change their own password. */
+/** Admins invite people and manage accounts; everyone can change their own password. */
 export function AccessPanel() {
   const user = useUser();
   const isAdmin = can(user.role, 'users.manage');
@@ -15,7 +15,7 @@ export function AccessPanel() {
         title="Roles & access"
         description={
           isAdmin
-            ? 'Create sign-in accounts and link employees to their own records.'
+            ? 'Invite people by email and role. Each person sets their own password.'
             : 'Your role determines your access.'
         }
       />
@@ -23,34 +23,35 @@ export function AccessPanel() {
         <AccountAdministration />
       ) : (
         <div className="info-strip">
-          <LockKeyhole size={17} /> Signed in as {ROLE_LABELS[user.role]}. Ask an organization admin to provision
-          another account.
+          <LockKeyhole size={17} /> Signed in as {ROLE_LABELS[user.role]}. Ask an organization admin to invite another
+          person.
         </div>
       )}
       <ChangePassword />
       <div className="info-strip">
-        <LockKeyhole size={17} /> This local demo uses password sessions. Changing your password signs out all your
-        sessions. Production requires SSO, MFA, managed recovery and a security review.
+        <LockKeyhole size={17} /> This demo uses password sessions. Changing your password signs out all your sessions.
+        Production requires SSO, MFA, managed recovery and a security review.
       </div>
     </section>
   );
 }
 
 function AccountAdministration() {
+  const self = useUser();
   const users = useUsers(true);
-  const { create, resetPassword, remove } = useAccountMutations();
-  const [username, setUsername] = useState('');
+  const invitations = useInvitations(true);
+  const { invite, revoke, resetPassword, remove } = useAccountMutations();
+  const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('employee');
   const [employeeId, setEmployeeId] = useState('');
-  const [credential, setCredential] = useState<{ username: string; password: string } | null>(null);
-  const [message, setMessage] = useState('');
+  const [link, setLink] = useState<{ email: string; url: string } | null>(null);
+  const [temporary, setTemporary] = useState<{ username: string; password: string } | null>(null);
   const [error, setError] = useState('');
-  const busy = create.isPending || resetPassword.isPending;
 
-  async function run(task: () => Promise<void>) {
+  async function attempt(task: () => Promise<void>) {
     setError('');
-    setMessage('');
-    setCredential(null);
+    setLink(null);
+    setTemporary(null);
     try {
       await task();
     } catch (reason) {
@@ -59,34 +60,30 @@ function AccountAdministration() {
   }
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void run(async () => {
-      const created = await create.mutateAsync({
-        username,
+    void attempt(async () => {
+      const created = await invite.mutateAsync({
+        email,
         role,
         employeeId: role === 'employee' ? employeeId : undefined,
       });
-      setUsername('');
+      setLink({ email: created.invitation.email, url: `${window.location.origin}/invite?token=${created.token}` });
+      setEmail('');
       setEmployeeId('');
-      setCredential({ username: created.username, password: created.temporaryPassword });
     });
   };
   const reset = (account: User) => {
-    if (
-      !window.confirm(`Issue a new temporary password for ${account.username}? This signs out their current sessions.`)
-    )
+    if (!window.confirm(`Issue a one-time password for ${account.username}? This signs out their current sessions.`))
       return;
-    void run(async () => {
+    void attempt(async () => {
       const result = await resetPassword.mutateAsync(account.id);
-      setCredential({ username: account.username, password: result.temporaryPassword });
+      setTemporary({ username: account.username, password: result.temporaryPassword });
     });
   };
   const removeAccount = (account: User) => {
-    if (!window.confirm(`Remove demo access for ${account.username}?`)) return;
-    void run(async () => {
-      await remove.mutateAsync(account.id);
-      setMessage(`Access removed for ${account.username}.`);
-    });
+    if (!window.confirm(`Remove access for ${account.username}?`)) return;
+    void attempt(() => remove.mutateAsync(account.id).then(() => undefined));
   };
+  const pending = invitations.data?.filter(item => !item.acceptedAt) ?? [];
 
   return (
     <>
@@ -94,32 +91,54 @@ function AccountAdministration() {
         {users.data?.map(account => (
           <div className="branch-row" key={account.id}>
             <Users size={17} />
-            <strong>{account.username}</strong>
+            <strong>{account.displayName ?? account.username}</strong>
             <span>{ROLE_LABELS[account.role]}</span>
             {account.employeeId && <small>{account.employeeId}</small>}
             {account.mustChangePassword && <small>Setup pending</small>}
-            {account.role !== 'admin' && (
-              <button className="text-button" disabled={busy} onClick={() => reset(account)}>
-                Reset password
-              </button>
-            )}
-            {!account.id.match(/^USR-(admin|hr|payroll|finance|auditor|employee)$/) && (
-              <button className="text-button" onClick={() => removeAccount(account)}>
-                Remove
-              </button>
+            {account.builtIn && <small>Sample account</small>}
+            {account.id !== self.id && !account.builtIn && (
+              <>
+                <button className="text-button" onClick={() => reset(account)}>
+                  Reset password
+                </button>
+                <button className="text-button" onClick={() => removeAccount(account)}>
+                  Remove
+                </button>
+              </>
             )}
           </div>
         ))}
       </div>
-      <h3>Add account</h3>
+      {pending.length > 0 && (
+        <>
+          <h3>Pending invitations</h3>
+          {pending.map(item => (
+            <div className="branch-row" key={item.id}>
+              <MailPlus size={17} />
+              <strong>{item.email}</strong>
+              <span>{ROLE_LABELS[item.role]}</span>
+              {item.employeeId && <small>{item.employeeId}</small>}
+              <Pill tone="info">expires {item.expiresAt.slice(0, 10)}</Pill>
+              <button
+                className="text-button"
+                onClick={() => void attempt(() => revoke.mutateAsync(item.id).then(() => undefined))}
+              >
+                Revoke
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+      <h3>Invite someone</h3>
       <form className="access-form" onSubmit={submit}>
         <label>
-          Username
+          Email
           <input
-            value={username}
-            onChange={event => setUsername(event.target.value)}
+            type="email"
+            value={email}
+            onChange={event => setEmail(event.target.value)}
             required
-            placeholder="e.g. riya.sharma"
+            placeholder="riya@company.com"
           />
         </label>
         <label>
@@ -144,17 +163,24 @@ function AccountAdministration() {
           </label>
         )}
         {error && <div className="auth-error">{error}</div>}
-        {message && <div className="info-strip">{message}</div>}
-        <button className="button primary" type="submit" disabled={busy}>
-          {create.isPending ? 'Creating…' : 'Create account'}
+        <button className="button primary" type="submit" disabled={invite.isPending}>
+          {invite.isPending ? 'Creating link…' : 'Create invitation link'}
         </button>
       </form>
-      {credential && (
+      {link && (
+        <div className="info-strip" role="status">
+          <Link2 size={17} />
+          <span>
+            <strong>Invitation for {link.email}.</strong> Share this one-time link privately; it expires in 7 days and
+            is not shown again: <code>{link.url}</code>
+          </span>
+        </div>
+      )}
+      {temporary && (
         <div className="info-strip" role="status">
           <LockKeyhole size={17} />
           <span>
-            <strong>Temporary access for {credential.username}.</strong> Give this one-time password privately:{' '}
-            <code>{credential.password}</code>. Copy it now; it will not appear in the account list. The user must
+            <strong>One-time password for {temporary.username}:</strong> <code>{temporary.password}</code>. They must
             choose a new password at next sign-in.
           </span>
         </div>

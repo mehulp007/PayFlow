@@ -8,14 +8,17 @@ import {
   CircleAlert,
   Info,
   LockKeyhole,
+  Lock,
   Send,
+  Undo2,
 } from 'lucide-react';
 import { can, type RunException, type RunSummary } from '@payflow/shared';
 import { useUser } from '../../app/AuthProvider';
 import { useFeedback } from '../../app/FeedbackProvider';
-import { useRunAction, useUpdateEmployee, type RunAction } from '../../app/queries';
+import { useEmployeeMutations, useRunAction, type RunAction } from '../../app/queries';
 import { download } from '../../lib/api';
 import { ApprovalModal } from './ApprovalModal';
+import { RejectModal } from './RejectModal';
 
 const VISIBLE_EXCEPTIONS = 6;
 
@@ -24,8 +27,9 @@ export function AttentionPanel({ run, exceptions }: { run: RunSummary; exception
   const user = useUser();
   const { notify, fail } = useFeedback();
   const action = useRunAction(run.id);
-  const updateEmployee = useUpdateEmployee();
+  const { update: updateEmployee } = useEmployeeMutations();
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const canPrepare = can(user.role, 'runs.prepare');
 
   async function perform(name: RunAction, success: string, body?: unknown) {
@@ -122,9 +126,19 @@ export function AttentionPanel({ run, exceptions }: { run: RunSummary; exception
           </button>
         )}
         {run.status === 'approval_pending' && can(user.role, 'runs.approve') && (
-          <button className="button primary full" disabled={action.isPending} onClick={() => setApprovalOpen(true)}>
-            <BadgeCheck size={17} /> Approve payroll
-          </button>
+          <>
+            <button className="button primary full" disabled={action.isPending} onClick={() => setApprovalOpen(true)}>
+              <BadgeCheck size={17} /> Approve payroll
+            </button>
+            <button className="button outline full" disabled={action.isPending} onClick={() => setRejectOpen(true)}>
+              <Undo2 size={16} /> Send back with a note
+            </button>
+          </>
+        )}
+        {run.status === 'approval_pending' && !can(user.role, 'runs.approve') && (
+          <div className="info-strip">
+            <Info size={17} /> Waiting for a Finance Approver. The preparer cannot approve their own run.
+          </div>
         )}
         {run.status === 'approved' && (
           <>
@@ -134,16 +148,28 @@ export function AttentionPanel({ run, exceptions }: { run: RunSummary; exception
             {can(user.role, 'runs.reconcile') && (
               <button
                 className="button outline full"
-                onClick={() => perform('reconcile-demo', 'Synthetic payment reconciliation recorded.')}
+                onClick={() => perform('reconcile', 'Synthetic payment reconciliation recorded.')}
               >
                 Simulate reconciliation
               </button>
             )}
           </>
         )}
-        {run.status === 'reconciled' && (
+        {run.status === 'paid' && (
+          <>
+            <div className="approved-box">
+              <CheckCircle2 size={19} /> Payments reconciled
+            </div>
+            {can(user.role, 'runs.close') && (
+              <button className="button outline full" onClick={() => perform('close', 'Pay period closed.')}>
+                <Lock size={16} /> Close period
+              </button>
+            )}
+          </>
+        )}
+        {run.status === 'closed' && (
           <div className="approved-box">
-            <CheckCircle2 size={19} /> Demo payroll reconciled
+            <Lock size={19} /> Period closed. Lines and payslips are final.
           </div>
         )}
         {run.status === 'draft' && (
@@ -159,6 +185,15 @@ export function AttentionPanel({ run, exceptions }: { run: RunSummary; exception
           </div>
         </div>
       </div>
+      {rejectOpen && (
+        <RejectModal
+          onClose={() => setRejectOpen(false)}
+          onConfirm={async note => {
+            setRejectOpen(false);
+            await perform('reject', 'Run sent back to the payroll team.', { note });
+          }}
+        />
+      )}
       {approvalOpen && (
         <ApprovalModal
           run={run}

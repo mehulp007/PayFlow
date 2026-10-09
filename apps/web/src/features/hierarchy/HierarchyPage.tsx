@@ -3,7 +3,7 @@ import { ArrowRight, FilterX, Network, Plus, Search } from 'lucide-react';
 import { can, type Employee } from '@payflow/shared';
 import { useUser } from '../../app/AuthProvider';
 import { useFeedback, useReportError } from '../../app/FeedbackProvider';
-import { useCurrentRun, useEmployees, useHierarchySummary } from '../../app/queries';
+import { useEmployees, useHierarchySummary } from '../../app/queries';
 import { Heading, Pagination, Pill } from '../../components';
 import { count, money, titleCase } from '../../lib/format';
 import { AddEmployeeDrawer } from './AddEmployeeDrawer';
@@ -16,7 +16,6 @@ const PAGE_SIZE = 25;
 export function HierarchyPage() {
   const user = useUser();
   const { notify } = useFeedback();
-  const { run } = useCurrentRun();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Employee | null>(null);
@@ -38,7 +37,7 @@ export function HierarchyPage() {
   const sum = (predicate: (type: string) => boolean) =>
     counts.filter(item => predicate(item.employmentType)).reduce((total, item) => total + item.count, 0);
   const isEditor = can(user.role, 'employees.write');
-  const canAdd = isEditor && run?.status === 'draft';
+  const canAdd = isEditor && Boolean(summary.data?.branches.length);
   const levels = [...(summary.data?.positionLevels ?? [])].reverse();
 
   return (
@@ -53,11 +52,6 @@ export function HierarchyPage() {
           </button>
         }
       />
-      {run && run.status !== 'draft' && isEditor && (
-        <div className="notice">
-          New records can be added before this payroll is calculated. Reset the demo run to start a new intake.
-        </div>
-      )}
       <div className="hierarchy-metrics">
         <div className="panel">
           <span>People in directory</span>
@@ -188,8 +182,8 @@ export function HierarchyPage() {
             onChange={event => update({ state: event.target.value })}
           >
             <option value="">All states</option>
-            {summary.data?.branches.map(item => (
-              <option key={item.state}>{item.state}</option>
+            {summary.data?.states.map(state => (
+              <option key={state}>{state}</option>
             ))}
           </select>
         </div>

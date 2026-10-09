@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { APPROVED_STATUSES, type TaxRegime } from '@payflow/shared';
+import type { TaxRegime } from '@payflow/shared';
 import { useUser } from '../../app/AuthProvider';
 import { useReportError } from '../../app/FeedbackProvider';
-import { useCurrentRun, useEmployee, usePayslip, useUpdateEmployee } from '../../app/queries';
+import { useCurrentRun, useEmployee, useEmployeeMutations, useMyPayslips, usePayslip } from '../../app/queries';
 import { DetailRow } from '../../components';
 import { money } from '../../lib/format';
 import { periodLabel } from '../../lib/period';
@@ -10,16 +10,17 @@ import { periodLabel } from '../../lib/period';
 /** Self service: the signed-in employee's record, tax regime choice and payslip. */
 export function EmployeePortal() {
   const user = useUser();
-  const { run, runId } = useCurrentRun();
+  const { run } = useCurrentRun();
   const employee = useEmployee(user.employeeId).data;
+  const latest = useMyPayslips(Boolean(user.employeeId)).data?.[0];
   const [showPayslip, setShowPayslip] = useState(false);
-  const payslip = usePayslip(runId, showPayslip ? user.employeeId : null);
-  const update = useUpdateEmployee();
+  const payslip = usePayslip(latest?.runId, showPayslip ? user.employeeId : null);
+  const { update } = useEmployeeMutations();
   useReportError(payslip.error ?? update.error);
 
   const status = run?.status ?? 'draft';
   const period = run ? periodLabel(run.year, run.month) : '';
-  const month = period.split(' ')[0];
+  const month = latest ? periodLabel(latest.year, latest.month).split(' ')[0] : period.split(' ')[0];
   const contractor = employee?.payrollScope === false;
   const slip = payslip.data?.line;
   const chooseRegime = (taxRegime: TaxRegime) =>
@@ -43,8 +44,8 @@ export function EmployeePortal() {
               ? 'This contractor record is outside employee payroll.'
               : slip
                 ? `Net pay ${money(slip.net)}`
-                : APPROVED_STATUSES.includes(status)
-                  ? 'Your approved payslip is ready.'
+                : latest
+                  ? 'Your latest approved payslip is ready.'
                   : 'Available after Finance approval.'}
           </p>
           {!contractor && (

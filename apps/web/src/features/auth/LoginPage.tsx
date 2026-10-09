@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router';
 import { ArrowRight } from 'lucide-react';
 import { useAuth } from '../../app/AuthProvider';
 import { AuthLayout } from './AuthLayout';
@@ -26,7 +27,7 @@ export function LoginPage() {
     <AuthLayout
       kicker="SECURE WORKSPACE"
       title="Welcome back"
-      intro="Sign in to your payroll workspace. Your account determines which records and actions you can access."
+      intro="Sign in with your email. Your account determines which records and actions you can access."
       aside={
         <>
           <span>PAYFLOW · INDIA PAYROLL 2026</span>
@@ -44,13 +45,13 @@ export function LoginPage() {
     >
       <form onSubmit={submit} className="auth-form">
         <label>
-          Username
+          Email
           <input
             autoComplete="username"
             value={username}
             onChange={event => setUsername(event.target.value)}
             required
-            placeholder="Your username"
+            placeholder="you@company.com"
           />
         </label>
         <label>
@@ -74,9 +75,17 @@ export function LoginPage() {
         </button>
       </form>
       <div className="auth-demo">
-        <strong>Individual accounts</strong>
-        <p>Each demo role has its own password. Find setup instructions in the project README.</p>
-        <small>Synthetic data only · local evaluation</small>
+        <strong>New to PayFlow?</strong>
+        <p>Create your own organization, or explore a generated company with six months of approved payroll.</p>
+        <div className="auth-links">
+          <Link className="button outline" to="/signup?start=sample">
+            Explore a sample company
+          </Link>
+          <Link className="button outline" to="/signup?start=empty">
+            Create an organization
+          </Link>
+        </div>
+        <small>Synthetic data only · the built-in Aster Group accounts are listed in the README</small>
       </div>
     </AuthLayout>
   );

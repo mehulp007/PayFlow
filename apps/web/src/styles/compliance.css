@@ -160,3 +160,19 @@
   color: #265bbb;
   border-bottom-color: #265bbb;
 }
+.state-rules {
+  margin-bottom: 17px;
+}
+.state-rules td {
+  white-space: normal;
+  vertical-align: top;
+}
+.state-rules td small {
+  font-size: 11px;
+  color: #53627e;
+  line-height: 1.5;
+}
+.report-run {
+  max-width: 420px;
+  margin: 0 0 17px;
+}

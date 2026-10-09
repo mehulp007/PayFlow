@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BadgeCheck, ChevronRight, FileText, Search, ShieldCheck, Users } from 'lucide-react';
 import type { Employee } from '@payflow/shared';
 import { useReportError } from '../../app/FeedbackProvider';
-import { useEmployees } from '../../app/queries';
+import { useBootstrap, useEmployees } from '../../app/queries';
 import { Heading, Pagination, PanelTitle, Pill } from '../../components';
 import { count, initials, money } from '../../lib/format';
 import { EmployeeRecordDrawer } from './EmployeeRecordDrawer';
@@ -17,13 +17,14 @@ export function PeoplePage({ compensation }: { compensation: boolean }) {
   const employees = useEmployees(page, PAGE_SIZE, { search });
   useReportError(employees.error);
   const data = employees.data;
+  const branchCount = useBootstrap().data?.organization.branches.length ?? 0;
 
   return (
     <>
       <Heading
         eyebrow={compensation ? 'COMPENSATION / SALARY STRUCTURES' : 'PEOPLE / EMPLOYEE RECORDS'}
         title={compensation ? 'Compensation' : 'People'}
-        description={`${count(data?.total)} employee records across five Indian branches.`}
+        description={`${count(data?.total)} active employee records across ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}.`}
       />
       <div className="people-layout">
         <section className="panel people-list">
@@ -120,7 +121,12 @@ export function PeoplePage({ compensation }: { compensation: boolean }) {
         </aside>
       </div>
       {selected && (
-        <EmployeeRecordDrawer employeeId={selected.id} fallback={selected} onClose={() => setSelected(null)} />
+        <EmployeeRecordDrawer
+          employeeId={selected.id}
+          fallback={selected}
+          initialTab={compensation ? 'salary' : 'record'}
+          onClose={() => setSelected(null)}
+        />
       )}
     </>
   );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import {
   ArrowRight,
   Banknote,
@@ -7,19 +7,21 @@ import {
   CircleAlert,
   ClipboardCheck,
   FileSpreadsheet,
+  ArrowLeft,
   History,
+  MessageSquareWarning,
   Search,
   ShieldCheck,
   SlidersHorizontal,
   Users,
   Wallet,
 } from 'lucide-react';
-import { APPROVED_STATUSES, can, type PayrollLine } from '@payflow/shared';
+import { can, type PayrollLine } from '@payflow/shared';
 import { useUser } from '../../app/AuthProvider';
-import { useFeedback } from '../../app/FeedbackProvider';
-import { useCurrentRun, useExceptions, useRunAction, useRunLines } from '../../app/queries';
+import { useFeedback, useReportError } from '../../app/FeedbackProvider';
+import { useExceptions, useRun, useRunAction, useRunLines } from '../../app/queries';
 import { EmptyState, Heading, Pagination, Pill, StatCard, Stepper } from '../../components';
-import { count, money, statusLabel } from '../../lib/format';
+import { count, money, runTone, statusLabel } from '../../lib/format';
 import { periodLabel, periodRange } from '../../lib/period';
 import { AttentionPanel } from './AttentionPanel';
 import { AuditDrawer } from './AuditDrawer';
@@ -54,7 +56,10 @@ export function PayrollPage() {
       { replace: true },
     );
 
-  const { summary: run, runId } = useCurrentRun();
+  const { runId } = useParams();
+  const runQuery = useRun(runId);
+  const run = runQuery.data;
+  useReportError(runQuery.error);
   const calculated = Boolean(run?.calculatedEmployees);
   const lines = useRunLines(runId, { page, search, exceptionOnly }, calculated);
   const exceptions = useExceptions(runId, calculated);
@@ -81,19 +86,28 @@ export function PayrollPage() {
       <Heading
         eyebrow="PAYROLL / RUNS"
         title={run ? `${periodLabel(run.year, run.month)} payroll` : 'Payroll run'}
-        description={run ? `${periodRange(run.year, run.month, run.paymentDate)} · All India` : undefined}
+        description={run ? `${periodRange(run.year, run.month, run.paymentDate)} · ${run.payGroupName}` : undefined}
         action={
           <div className="header-buttons">
-            <Pill tone={APPROVED_STATUSES.includes(status) ? 'success' : status === 'draft' ? 'neutral' : 'info'}>
-              {statusLabel(status)}
-            </Pill>
+            <Link className="button outline" to="/payroll">
+              <ArrowLeft size={16} /> All runs
+            </Link>
+            <Pill tone={runTone(status)}>{statusLabel(status)}</Pill>
             <button className="button outline" onClick={() => setAuditOpen(true)}>
               <History size={16} /> Audit trail
             </button>
           </div>
         }
       />
-      <Stepper steps={STAGES} current={STAGE_BY_STATUS[status] ?? 3} />
+      {run?.rejectionNote && (
+        <div className="notice">
+          <MessageSquareWarning size={19} />
+          <span>
+            <strong>Sent back by Finance:</strong> {run.rejectionNote}
+          </span>
+        </div>
+      )}
+      <Stepper steps={STAGES} current={STAGE_BY_STATUS[status] ?? (status === 'closed' ? 4 : 3)} />
       <div className="stats-grid">
         <StatCard
           label="Employees"

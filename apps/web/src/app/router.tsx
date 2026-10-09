@@ -4,6 +4,9 @@ import { useAuth, useUser } from './AuthProvider';
 import { AppShell } from './layout/AppShell';
 import { LoginPage } from '../features/auth/LoginPage';
 import { FirstPasswordPage } from '../features/auth/FirstPasswordPage';
+import { SignupPage } from '../features/auth/SignupPage';
+import { AcceptInvitePage } from '../features/auth/AcceptInvitePage';
+import { RunsPage } from '../features/payroll/RunsPage';
 import { OverviewPage } from '../features/overview/OverviewPage';
 import { PeoplePage } from '../features/people/PeoplePage';
 import { HierarchyPage } from '../features/hierarchy/HierarchyPage';
@@ -46,6 +49,15 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/signup',
+    element: (
+      <GuestOnly>
+        <SignupPage />
+      </GuestOnly>
+    ),
+  },
+  { path: '/invite', element: <AcceptInvitePage /> },
+  {
     element: <RequireAuth />,
     children: [
       {
@@ -60,7 +72,8 @@ export const router = createBrowserRouter([
               { path: 'people', element: <PeoplePage compensation={false} /> },
               { path: 'compensation', element: <PeoplePage compensation /> },
               { path: 'hierarchy', element: <HierarchyPage /> },
-              { path: 'payroll', element: <PayrollPage /> },
+              { path: 'payroll', element: <RunsPage /> },
+              { path: 'payroll/:runId', element: <PayrollPage /> },
               { path: 'compliance', element: <CompliancePage /> },
               { path: 'reports', element: <ReportsPage /> },
               { path: 'settings', element: <SettingsPage /> },

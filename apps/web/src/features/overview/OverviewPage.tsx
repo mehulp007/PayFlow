@@ -23,11 +23,12 @@ export function OverviewPage() {
   const user = useUser();
   const navigate = useNavigate();
   const { notify, fail } = useFeedback();
-  const { summary: run, runId } = useCurrentRun();
+  const { summary: run, runId, isSuccess, data } = useCurrentRun();
+  const branchCount = data?.organization.branches.length ?? 0;
   const action = useRunAction(runId);
   const calculated = Boolean(run?.calculatedEmployees);
   const period = run ? periodLabel(run.year, run.month) : '';
-  const openRun = () => navigate('/payroll');
+  const openRun = () => navigate(runId ? `/payroll/${runId}` : '/payroll');
 
   async function calculate() {
     try {
@@ -47,8 +48,14 @@ export function OverviewPage() {
       'A separate approver confirms final totals',
       APPROVED_STATUSES.includes(run?.status ?? 'draft'),
     ],
-    ['Export and reconcile', 'Prepare demo bank file and mark settlement', run?.status === 'reconciled'],
+    [
+      'Export and reconcile',
+      'Prepare demo bank file and mark settlement',
+      ['paid', 'closed'].includes(run?.status ?? ''),
+    ],
   ];
+
+  if (isSuccess && !runId) return <GettingStarted />;
 
   return (
     <>
@@ -96,7 +103,7 @@ export function OverviewPage() {
           label="Employees in scope"
           value={run ? count(run.totalEmployees) : '—'}
           icon={Users}
-          foot="Across 5 branches"
+          foot={`Across ${branchCount} ${branchCount === 1 ? 'branch' : 'branches'}`}
         />
         <StatCard
           label="Gross pay"
@@ -180,6 +187,69 @@ export function OverviewPage() {
           </div>
         </section>
       </div>
+    </>
+  );
+}
+
+/** A new organization without pay runs: the next steps to its first payroll. */
+function GettingStarted() {
+  const navigate = useNavigate();
+  const steps: Array<[title: string, detail: string, to: string]> = [
+    [
+      'Check branches and pay groups',
+      'Branches decide the state rules for professional tax and welfare fund',
+      '/settings',
+    ],
+    ['Add your people', 'Start with the most senior person; everyone else reports up to them', '/hierarchy'],
+    [
+      'Invite your team',
+      'HR, payroll, finance, auditors and employees each get their own sign-in',
+      '/settings?tab=access',
+    ],
+    ['Open your first pay period', 'Everyone employed in the month is included automatically', '/payroll'],
+  ];
+  return (
+    <>
+      <Heading
+        eyebrow="OVERVIEW / GETTING STARTED"
+        title="Welcome to PayFlow"
+        description="Four steps to your first payroll run."
+      />
+      <div className="overview-banner">
+        <div>
+          <span className="banner-kicker">NEW ORGANIZATION</span>
+          <h2>Set up people, then open a pay period</h2>
+          <p>
+            Calculations follow the October 2026 rule pack: income tax, Labour Codes wages, EPF, ESI and state
+            deductions.
+          </p>
+          <div className="banner-actions">
+            <button className="button white" onClick={() => navigate('/hierarchy')}>
+              Add people <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="banner-graphic">
+          <div className="graphic-ring">
+            <Wallet size={54} />
+          </div>
+        </div>
+      </div>
+      <section className="panel">
+        <PanelTitle title="Getting started" description="Each step opens the page where it is done" />
+        <div className="checklist">
+          {steps.map(([title, detail, to], index) => (
+            <button className="checklist-row" key={title} onClick={() => navigate(to)}>
+              <span className="check-step">{index + 1}</span>
+              <span>
+                <strong>{title}</strong>
+                <small>{detail}</small>
+              </span>
+              <ArrowRight size={17} />
+            </button>
+          ))}
+        </div>
+      </section>
     </>
   );
 }

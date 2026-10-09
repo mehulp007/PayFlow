@@ -1,6 +1,6 @@
 import { BookOpenCheck, LockKeyhole, MapPinned, ShieldCheck, Users } from 'lucide-react';
 import { APPROVED_STATUSES } from '@payflow/shared';
-import { useCurrentRun } from '../../app/queries';
+import { useComplianceRules, useCurrentRun } from '../../app/queries';
 import { Heading, PanelTitle, Pill } from '../../components';
 import { statusLabel } from '../../lib/format';
 import { filingCalendar, taxYearLabel } from '../../lib/period';
@@ -34,6 +34,7 @@ const AREAS = [
 
 export function CompliancePage() {
   const { summary: run } = useCurrentRun();
+  const rules = useComplianceRules().data;
   const calendar = run ? filingCalendar(run.year, run.month) : [];
   return (
     <>
@@ -64,6 +65,40 @@ export function CompliancePage() {
           </section>
         ))}
       </div>
+      <section className="panel state-rules">
+        <PanelTitle
+          title="State rules in force"
+          description={`Your branches' states · rule pack ${rules?.ruleVersion ?? ''}`}
+        />
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Professional tax</th>
+                <th>Labour welfare fund</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules?.states.map(state => (
+                <tr key={state.state}>
+                  <td>
+                    <strong>{state.state}</strong>
+                  </td>
+                  <td>
+                    {state.professionalTax.map(line => (
+                      <small key={line}>{line}</small>
+                    ))}
+                  </td>
+                  <td>
+                    <small>{state.labourWelfareFund}</small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
       <div className="two-column">
         <section className="panel">
           <PanelTitle

@@ -11,9 +11,12 @@ import {
 } from 'lucide-react';
 import type { ReportKind } from '@payflow/shared';
 import { useFeedback } from '../../app/FeedbackProvider';
-import { useCurrentRun } from '../../app/queries';
+import { useRuns } from '../../app/queries';
 import { Heading } from '../../components';
 import { download } from '../../lib/api';
+import { statusLabel } from '../../lib/format';
+import { periodLabel } from '../../lib/period';
+import { useState } from 'react';
 
 const REPORTS: Array<{ kind: ReportKind; title: string; description: string; icon: LucideIcon }> = [
   {
@@ -46,7 +49,9 @@ const REPORTS: Array<{ kind: ReportKind; title: string; description: string; ico
 
 export function ReportsPage() {
   const { notify, fail } = useFeedback();
-  const { summary: run } = useCurrentRun();
+  const runs = useRuns().data ?? [];
+  const [selectedId, setSelectedId] = useState('');
+  const run = runs.find(item => item.id === selectedId) ?? runs[0];
 
   async function exportReport(kind: ReportKind) {
     try {
@@ -64,6 +69,16 @@ export function ReportsPage() {
         title="Payroll reports"
         description="Download calculation outputs for review and reconciliation."
       />
+      <label className="form-label report-run">
+        Pay run
+        <select value={run?.id ?? ''} onChange={event => setSelectedId(event.target.value)}>
+          {runs.map(item => (
+            <option key={item.id} value={item.id}>
+              {periodLabel(item.year, item.month)} · {item.payGroupName} · {statusLabel(item.status)}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="notice">
         <AlertCircle size={19} />
         <span>

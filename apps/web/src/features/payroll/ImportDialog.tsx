@@ -6,8 +6,8 @@ import { Modal } from '../../components';
 
 const SAMPLE = [
   'employee_id,variable_pay,other_deduction,unpaid_days,working_days,note',
-  'EMP00001,2500,0,0,30,September bonus',
-  'EMP00002,0,0,1,30,One unpaid day',
+  'EMP00001,2500,0,0,31,October bonus',
+  'EMP00002,0,0,1,31,One unpaid day',
 ].join('\n');
 
 /** Paste or choose a CSV, preview the validation result, then import the accepted rows. */

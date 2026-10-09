@@ -163,3 +163,33 @@
   font-size: 12px;
   padding: 17px 8px 3px;
 }
+.view-as {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #e6edfa;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f8da5;
+}
+.view-as select {
+  border: 1px solid #d4deed;
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 6px 8px;
+}
+.today {
+  white-space: nowrap;
+}
+.signed-in-label {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

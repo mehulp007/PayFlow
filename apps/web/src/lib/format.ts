@@ -22,3 +22,9 @@ export const initials = (name: string) =>
     .map(part => part[0])
     .slice(0, 2)
     .join('');
+
+/** Pill colour for a run status: neutral while open, blue in progress, green once approved. */
+export function runTone(status: string): 'neutral' | 'info' | 'success' {
+  if (status === 'draft') return 'neutral';
+  return ['approved', 'paid', 'closed'].includes(status) ? 'success' : 'info';
+}

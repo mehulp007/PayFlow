@@ -18,10 +18,10 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { ROLE_LABELS } from '@payflow/shared';
+import { ROLE_LABELS, type Role } from '@payflow/shared';
 import { useAuth, useUser } from '../AuthProvider';
 import { ErrorBanner, useFeedback } from '../FeedbackProvider';
-import { useBootstrap } from '../queries';
+import { useBootstrap, useViewAs } from '../queries';
 import { periodLabel } from '../../lib/period';
 
 export const NAVIGATION: Array<{ to: string; label: string; icon: LucideIcon }> = [
@@ -38,8 +38,9 @@ const EMPLOYEE_NAVIGATION = [{ to: '/me', label: 'My payroll', icon: LayoutDashb
 
 export function AppShell() {
   const user = useUser();
-  const { signOut } = useAuth();
-  const { clearError } = useFeedback();
+  const { signOut, adopt } = useAuth();
+  const { clearError, fail } = useFeedback();
+  const viewAs = useViewAs();
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -47,6 +48,22 @@ export function AppShell() {
   const isEmployee = user.role === 'employee';
   const organization = bootstrap.data?.organization;
   const run = bootstrap.data?.currentRun;
+  const viewAsRoles = bootstrap.data?.viewAsRoles ?? [];
+  const orgInitials = (organization?.name ?? '')
+    .split(/\s+/)
+    .map(word => word[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  async function switchRole(role: Role) {
+    try {
+      adopt(await viewAs.mutateAsync(role));
+      navigate(role === 'employee' ? '/me' : '/overview');
+    } catch (error) {
+      fail(error);
+    }
+  }
 
   // Each page starts without a stale error from the previous one.
   useEffect(() => {
@@ -66,10 +83,13 @@ export function AppShell() {
           </div>
         </div>
         <div className="org-switch">
-          <span className="org-mark">AG</span>
+          <span className="org-mark">{orgInitials || '—'}</span>
           <span>
-            <strong>{organization?.name ?? 'Aster Group'}</strong>
-            <small>One organization · {organization?.branches ?? 5} branches</small>
+            <strong>{organization?.name ?? 'Loading…'}</strong>
+            <small>
+              {organization?.isSample ? 'Sample company' : 'Organization'} · {organization?.branches.length ?? 0}{' '}
+              {organization?.branches.length === 1 ? 'branch' : 'branches'}
+            </small>
           </span>
           <ChevronDown size={15} />
         </div>
@@ -93,6 +113,23 @@ export function AppShell() {
             Synthetic demo data
             <br />
             <small>Rules reviewed October 2026</small>
+            {viewAsRoles.length > 0 && (
+              <label className="view-as">
+                View this sample as
+                <select
+                  aria-label="View as role"
+                  value={user.role}
+                  disabled={viewAs.isPending}
+                  onChange={event => switchRole(event.target.value as Role)}
+                >
+                  {viewAsRoles.map(role => (
+                    <option key={role} value={role}>
+                      {ROLE_LABELS[role]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
           {!isEmployee && (
             <button
@@ -112,7 +149,7 @@ export function AppShell() {
           <button className="icon-button mobile-menu" aria-label="Open menu" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          {isEmployee ? <div className="global-search">Employee self service</div> : <PayrollSearch />}
+          {isEmployee ? <div className="global-search">Employee self service</div> : <PayrollSearch runId={run?.id} />}
           <div className="top-actions">
             <span className="today">
               <CalendarDays size={17} /> {run ? periodLabel(run.year, run.month) : '—'}
@@ -120,9 +157,9 @@ export function AppShell() {
             <button className="icon-button" title="Notifications">
               <Bell size={19} />
             </button>
-            <div className="avatar">{user.username.slice(0, 2).toUpperCase()}</div>
+            <div className="avatar">{(user.displayName ?? user.username).slice(0, 2).toUpperCase()}</div>
             <span className="signed-in-label">
-              {user.username} · {ROLE_LABELS[user.role]}
+              {user.displayName ?? user.username} · {ROLE_LABELS[user.role]}
             </span>
             <button className="signout-button" onClick={signOut}>
               Sign out
@@ -138,12 +175,13 @@ export function AppShell() {
   );
 }
 
-/** The topbar search filters the payroll run's employee lines. */
-function PayrollSearch() {
+/** The topbar search filters the latest run's employee lines. */
+function PayrollSearch({ runId }: { runId: string | undefined }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [params] = useSearchParams();
-  const value = pathname === '/payroll' ? (params.get('search') ?? '') : '';
+  const target = runId ? `/payroll/${runId}` : '/payroll';
+  const value = pathname === target ? (params.get('search') ?? '') : '';
   return (
     <div className="global-search">
       <Search size={18} />
@@ -151,7 +189,7 @@ function PayrollSearch() {
         placeholder="Search employees, payroll, reports..."
         value={value}
         onChange={event =>
-          navigate(`/payroll?search=${encodeURIComponent(event.target.value)}`, { replace: pathname === '/payroll' })
+          navigate(`${target}?search=${encodeURIComponent(event.target.value)}`, { replace: pathname === target })
         }
       />
       <kbd>Ctrl K</kbd>

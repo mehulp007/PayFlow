@@ -212,3 +212,102 @@
 .access-form label:has(input[type='password']) {
   grid-column: 1/-1;
 }
+
+/* Sign-up wizard */
+.signup-branches {
+  display: grid;
+  gap: 8px;
+  color: #3c5274;
+  font-size: 12px;
+  font-weight: 800;
+}
+.signup-branches small {
+  color: #8190a5;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.signup-branches .text-button {
+  justify-self: start;
+}
+.signup-branch {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+  gap: 8px;
+}
+.signup-branch input,
+.signup-branch select {
+  height: 45px;
+  border: 1px solid #d9e3f0;
+  border-radius: 9px;
+  padding: 0 13px;
+  color: #152a4e;
+  background: var(--color-surface);
+  font-weight: 500;
+}
+.signup-branch .icon-button {
+  align-self: center;
+}
+.signup-actions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+}
+.auth-form .signup-actions .button.outline {
+  width: auto;
+}
+.start-choices {
+  display: grid;
+  gap: 10px;
+}
+.start-choice {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  border: 1px solid #d9e3f0;
+  border-radius: 11px;
+  background: var(--color-surface);
+  padding: 16px;
+  color: #344b6c;
+}
+.start-choice svg {
+  color: var(--color-primary);
+}
+.start-choice strong {
+  font-size: 14px;
+  color: #152a4e;
+}
+.start-choice span {
+  font-size: 12px;
+  line-height: 1.55;
+  color: #7888a2;
+}
+.start-choice.selected {
+  border-color: var(--color-primary);
+  background: #f3f7ff;
+  box-shadow: 0 0 0 3px #e2edff;
+}
+.auth-demo a {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.access-form.inline-add {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  margin: 10px 20px 18px;
+}
+.access-form.inline-add .button {
+  height: 40px;
+}
+.access-form code,
+.info-strip code {
+  word-break: break-all;
+}
+.access-form.inline-add.single {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
