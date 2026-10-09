@@ -48,8 +48,13 @@ export function calculatePayroll(
   if (wages > basic + special) ruleNotes.push('Excluded allowances exceed 50% of pay; the excess is counted as wages');
 
   const epf = calculateEpf({
-    wages, year: period.year, month: period.month, dateOfBirth: employee.dateOfBirth,
-    member: employee.pfMember, epsMember: employee.epsMember, onActualWages: employee.pfOnActualWages,
+    wages,
+    year: period.year,
+    month: period.month,
+    dateOfBirth: employee.dateOfBirth,
+    member: employee.pfMember,
+    epsMember: employee.epsMember,
+    onActualWages: employee.pfOnActualWages,
   });
   if (period.year === 2026 && period.month === 9 && employee.pfMember) {
     ruleNotes.push('EPF wage ceiling split for September 2026: ₹15,000 for 1–16 Sep, ₹25,000 from 17 Sep');
@@ -57,18 +62,36 @@ export function calculatePayroll(
 
   const esi = calculateEsi({ wages, covered: employee.esiMember, paidDays });
   if (esi.continuedAboveCeiling) {
-    flags.push({ code: 'ESI_ABOVE_CEILING', severity: 'warning',
-      message: 'Wages are above ₹21,000; ESI continues until the contribution period ends' });
+    flags.push({
+      code: 'ESI_ABOVE_CEILING',
+      severity: 'warning',
+      message: 'Wages are above ₹21,000; ESI continues until the contribution period ends',
+    });
   }
 
-  const pt = professionalTax({ state: employee.state, month: period.month, monthlyGross: gross, gender: employee.gender });
-  if (!pt) flags.push({ code: 'PT_RULE_MISSING', severity: 'blocking', message: `Professional tax rule for ${employee.state} needs review` });
+  const pt = professionalTax({
+    state: employee.state,
+    month: period.month,
+    monthlyGross: gross,
+    gender: employee.gender,
+  });
+  if (!pt)
+    flags.push({
+      code: 'PT_RULE_MISSING',
+      severity: 'blocking',
+      message: `Professional tax rule for ${employee.state} needs review`,
+    });
   else {
     ruleNotes.push(pt.note);
     if (pt.needsReview) flags.push({ code: 'PT_REVIEW', severity: 'warning', message: pt.needsReview });
   }
   const lwf = labourWelfareFund({ state: employee.state, month: period.month, date: periodStart, monthlyGross: gross });
-  if (!lwf) flags.push({ code: 'LWF_RULE_MISSING', severity: 'blocking', message: `Labour welfare rule for ${employee.state} needs review` });
+  if (!lwf)
+    flags.push({
+      code: 'LWF_RULE_MISSING',
+      severity: 'blocking',
+      message: `Labour welfare rule for ${employee.state} needs review`,
+    });
   else if (lwf.employee || lwf.employer) ruleNotes.push(lwf.note);
   const professionalTaxAmount = pt?.amount ?? 0;
   const lwfEmployee = lwf?.employee ?? 0;
@@ -77,8 +100,10 @@ export function calculatePayroll(
   // Income tax: project the year from salary already paid, this month's actual pay, and regular pay ahead.
   const monthIndex = taxYearMonthIndex(period.month);
   const monthsAfter = 12 - monthIndex;
-  const salaryBefore = employee.salaryPaidThisYear ?? regularMonthly * monthsEmployedBefore(employee.joinDate, period);
-  const projectedGross = salaryBefore + gross + regularMonthly * monthsAfter + employee.annualPriorEmployerTaxableSalary;
+  const monthsBefore = monthsEmployedBefore(employee.joinDate, period);
+  const salaryBefore = employee.salaryPaidThisYear ?? regularMonthly * monthsBefore;
+  const projectedGross =
+    salaryBefore + gross + regularMonthly * monthsAfter + employee.annualPriorEmployerTaxableSalary;
   const yearEnd = `${period.year + (period.month > 3 ? 1 : 0)}-03-31`;
   const projected = annualIncomeTax({
     annualGrossSalary: projectedGross,
@@ -87,33 +112,68 @@ export function calculatePayroll(
     regime: employee.taxRegime,
     age: ageOn(employee.dateOfBirth, yearEnd),
   });
-  const incomeTax = Math.max(0, roundRupee((projected.total - employee.taxAlreadyDeducted) / (monthsAfter + 1)));
+  // Without year-to-date figures, assume earlier months were paid at the regular salary with TDS spread evenly.
+  const taxDeductedBefore =
+    employee.salaryPaidThisYear === undefined
+      ? Math.max(employee.taxAlreadyDeducted, (projected.total * monthsBefore) / (monthsBefore + 1 + monthsAfter))
+      : employee.taxAlreadyDeducted;
+  const incomeTax = Math.max(0, roundRupee((projected.total - taxDeductedBefore) / (monthsAfter + 1)));
 
   const otherDeduction = input.otherDeduction;
   const deductions = epf.employee + esi.employee + professionalTaxAmount + lwfEmployee + incomeTax + otherDeduction;
   const net = gross - deductions;
-  const employerCost = gross + epf.employerEpf + epf.employerEps + epf.edli + epf.adminCharges + esi.employer + lwfEmployer;
+  const employerCost =
+    gross + epf.employerEpf + epf.employerEps + epf.edli + epf.adminCharges + esi.employer + lwfEmployer;
 
-  if (!employee.bankReady) flags.push({ code: 'BANK_MISSING', severity: 'blocking', message: 'Verified bank details required' });
+  if (!employee.bankReady)
+    flags.push({ code: 'BANK_MISSING', severity: 'blocking', message: 'Verified bank details required' });
   if (net < 0) flags.push({ code: 'NEGATIVE_NET', severity: 'blocking', message: 'Deductions exceed gross pay' });
   else if (deductions > wages / 2) {
-    flags.push({ code: 'DEDUCTIONS_OVER_HALF', severity: 'warning',
-      message: 'Deductions exceed 50% of wages (Code on Wages, s. 18); review before approval' });
+    flags.push({
+      code: 'DEDUCTIONS_OVER_HALF',
+      severity: 'warning',
+      message: 'Deductions exceed 50% of wages (Code on Wages, s. 18); review before approval',
+    });
   }
   if (gross > regularMonthly * 1.5) {
     flags.push({ code: 'HIGH_VARIANCE', severity: 'warning', message: 'Pay is over 50% above regular monthly salary' });
   }
 
   return {
-    employeeId: employee.id, employeeName: employee.name, branch: employee.branch, state: employee.state,
-    basic, hra, special, variablePay: input.variablePay, lossOfPay, ncpDays: input.unpaidDays, gross,
-    statutoryWages: wages, pfWages: epf.pfWages, epsWages: epf.epsWages, edliWages: epf.edliWages,
-    pfEmployee: epf.employee, pfEmployer: epf.employerEpf, epsEmployer: epf.employerEps,
-    edliEmployer: epf.edli, epfAdminCharges: epf.adminCharges,
-    esiWages: esi.wages, esiEmployee: esi.employee, esiEmployer: esi.employer,
-    professionalTax: professionalTaxAmount, labourWelfareFund: lwfEmployee, labourWelfareFundEmployer: lwfEmployer,
-    incomeTax, otherDeduction, deductions, net, employerCost,
-    annualProjectedTax: projected.total, ruleVersion: RULE_VERSION, ruleNotes, flags,
+    employeeId: employee.id,
+    employeeName: employee.name,
+    branch: employee.branch,
+    state: employee.state,
+    basic,
+    hra,
+    special,
+    variablePay: input.variablePay,
+    lossOfPay,
+    ncpDays: input.unpaidDays,
+    gross,
+    statutoryWages: wages,
+    pfWages: epf.pfWages,
+    epsWages: epf.epsWages,
+    edliWages: epf.edliWages,
+    pfEmployee: epf.employee,
+    pfEmployer: epf.employerEpf,
+    epsEmployer: epf.employerEps,
+    edliEmployer: epf.edli,
+    epfAdminCharges: epf.adminCharges,
+    esiWages: esi.wages,
+    esiEmployee: esi.employee,
+    esiEmployer: esi.employer,
+    professionalTax: professionalTaxAmount,
+    labourWelfareFund: lwfEmployee,
+    labourWelfareFundEmployer: lwfEmployer,
+    incomeTax,
+    otherDeduction,
+    deductions,
+    net,
+    employerCost,
+    annualProjectedTax: projected.total,
+    ruleVersion: RULE_VERSION,
+    ruleNotes,
+    flags,
   };
 }
-

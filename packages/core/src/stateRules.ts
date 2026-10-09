@@ -27,7 +27,11 @@ export interface ProfessionalTaxArgs {
   /** Tamil Nadu levies PT on half-yearly income; defaults to six times the month's gross. */
   halfYearlyGross?: Money;
 }
-export interface RuleResult { amount: Money; note: string; needsReview?: string }
+export interface RuleResult {
+  amount: Money;
+  note: string;
+  needsReview?: string;
+}
 
 const professionalTaxRules: Record<string, (args: ProfessionalTaxArgs) => RuleResult> = {
   // Karnataka Tax on Professions (Amendment) Act, 2025: ₹200 a month from ₹25,000, ₹300 in February.
@@ -38,12 +42,23 @@ const professionalTaxRules: Record<string, (args: ProfessionalTaxArgs) => RuleRe
   // Maharashtra PT Act, as amended 2023: women up to ₹25,000 exempt; ₹300 in February.
   Maharashtra: ({ monthlyGross, month, gender }) => {
     const top = month === 2 ? R(300) : R(200);
-    const slabs: Slab[] = gender === 'female'
-      ? [{ upTo: R(25000), amount: 0 }, { upTo: ABOVE, amount: top }]
-      : [{ upTo: R(7500), amount: 0 }, { upTo: R(10000), amount: R(175) }, { upTo: ABOVE, amount: top }];
+    const slabs: Slab[] =
+      gender === 'female'
+        ? [
+            { upTo: R(25000), amount: 0 },
+            { upTo: ABOVE, amount: top },
+          ]
+        : [
+            { upTo: R(7500), amount: 0 },
+            { upTo: R(10000), amount: R(175) },
+            { upTo: ABOVE, amount: top },
+          ];
     return {
       amount: slabAmount(monthlyGross, slabs),
-      note: gender === 'female' ? 'Maharashtra PT (women): exempt up to ₹25,000' : 'Maharashtra PT: ₹175 / ₹200, ₹300 in February',
+      note:
+        gender === 'female'
+          ? 'Maharashtra PT (women): exempt up to ₹25,000'
+          : 'Maharashtra PT: ₹175 / ₹200, ₹300 in February',
       needsReview: gender === null ? 'Gender not recorded; Maharashtra PT applied using the general slab' : undefined,
     };
   },
@@ -54,8 +69,12 @@ const professionalTaxRules: Record<string, (args: ProfessionalTaxArgs) => RuleRe
     const income = halfYearlyGross ?? monthlyGross * 6;
     return {
       amount: slabAmount(income, [
-        { upTo: R(21000), amount: 0 }, { upTo: R(30000), amount: R(180) }, { upTo: R(45000), amount: R(425) },
-        { upTo: R(60000), amount: R(930) }, { upTo: R(75000), amount: R(1025) }, { upTo: ABOVE, amount: R(1250) },
+        { upTo: R(21000), amount: 0 },
+        { upTo: R(30000), amount: R(180) },
+        { upTo: R(45000), amount: R(425) },
+        { upTo: R(60000), amount: R(930) },
+        { upTo: R(75000), amount: R(1025) },
+        { upTo: ABOVE, amount: R(1250) },
       ]),
       note: 'Tamil Nadu PT (Greater Chennai Corporation): half-yearly slab',
     };
@@ -63,8 +82,11 @@ const professionalTaxRules: Record<string, (args: ProfessionalTaxArgs) => RuleRe
   // West Bengal State Tax on Professions, Trades, Callings and Employments Act, 1979.
   'West Bengal': ({ monthlyGross }) => ({
     amount: slabAmount(monthlyGross, [
-      { upTo: R(10000), amount: 0 }, { upTo: R(15000), amount: R(110) }, { upTo: R(25000), amount: R(130) },
-      { upTo: R(40000), amount: R(150) }, { upTo: ABOVE, amount: R(200) },
+      { upTo: R(10000), amount: 0 },
+      { upTo: R(15000), amount: R(110) },
+      { upTo: R(25000), amount: R(130) },
+      { upTo: R(40000), amount: R(150) },
+      { upTo: ABOVE, amount: R(200) },
     ]),
     note: 'West Bengal PT: monthly slab',
   }),
@@ -80,7 +102,11 @@ export function professionalTax(args: ProfessionalTaxArgs): RuleResult | null {
 // Labour welfare fund
 // ---------------------------------------------------------------------------
 
-export interface LwfResult { employee: Money; employer: Money; note: string }
+export interface LwfResult {
+  employee: Money;
+  employer: Money;
+  note: string;
+}
 
 /** Haryana caps the employee share (0.2% of wages) and indexes the cap every 1 January. */
 const HARYANA_LWF_CAPS: ReadonlyArray<{ from: string; employeeCap: Money }> = [
@@ -90,7 +116,9 @@ const HARYANA_LWF_CAPS: ReadonlyArray<{ from: string; employeeCap: Money }> = [
 
 function fixed(months: number[], employee: number, employer: number, note: string) {
   return ({ month }: { month: number }): LwfResult =>
-    months.includes(month) ? { employee: R(employee), employer: R(employer), note } : { employee: 0, employer: 0, note };
+    months.includes(month)
+      ? { employee: R(employee), employer: R(employer), note }
+      : { employee: 0, employer: 0, note };
 }
 
 const lwfRules: Record<string, (args: { month: number; date: string; monthlyGross: Money }) => LwfResult> = {
@@ -107,7 +135,12 @@ const lwfRules: Record<string, (args: { month: number; date: string; monthlyGros
 };
 
 /** Returns null when the state has no reviewed rule. */
-export function labourWelfareFund(args: { state: string; month: number; date: string; monthlyGross: Money }): LwfResult | null {
+export function labourWelfareFund(args: {
+  state: string;
+  month: number;
+  date: string;
+  monthlyGross: Money;
+}): LwfResult | null {
   return lwfRules[args.state]?.(args) ?? null;
 }
 

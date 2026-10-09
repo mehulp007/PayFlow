@@ -62,7 +62,12 @@ function addYears(date: string, years: number): string {
   return `${Number(date.slice(0, 4)) + years}${date.slice(4)}`;
 }
 
-interface Segment { from: string; days: number; ceiling: Money; epsAllowed: boolean }
+interface Segment {
+  from: string;
+  days: number;
+  ceiling: Money;
+  epsAllowed: boolean;
+}
 
 /**
  * Splits a wage month wherever the ceiling changes or the member turns 58, as EPFO requires for
@@ -102,7 +107,16 @@ export function calculateEpf(args: {
   epsMember: boolean;
   onActualWages: boolean;
 }): EpfResult {
-  const none = { pfWages: 0, epsWages: 0, edliWages: 0, employee: 0, employerEpf: 0, employerEps: 0, edli: 0, adminCharges: 0 };
+  const none = {
+    pfWages: 0,
+    epsWages: 0,
+    edliWages: 0,
+    employee: 0,
+    employerEpf: 0,
+    employerEps: 0,
+    edli: 0,
+    adminCharges: 0,
+  };
   if (!args.member || args.wages <= 0) return none;
   const totalDays = daysInMonth(args.year, args.month);
   let pfWages = 0;
@@ -148,7 +162,12 @@ export function esiContributionPeriod(month: number): 'Apr–Sep' | 'Oct–Mar' 
   return month >= 4 && month <= 9 ? 'Apr–Sep' : 'Oct–Mar';
 }
 
-export interface EsiResult { wages: Money; employee: Money; employer: Money; continuedAboveCeiling: boolean }
+export interface EsiResult {
+  wages: Money;
+  employee: Money;
+  employer: Money;
+  continuedAboveCeiling: boolean;
+}
 
 /**
  * A member covered at the start of the contribution period keeps contributing on actual wages until it

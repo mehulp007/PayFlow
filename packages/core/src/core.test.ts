@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
-import { describe, test } from 'node:test';
+import { describe, test } from 'vitest';
 import {
-  annualIncomeTax, calculateEpf, calculateEsi, calculatePayroll, epfWageCeilingOn, esiCoveredForPeriod,
-  labourWelfareFund, professionalTax, statutoryWages,
+  annualIncomeTax,
+  calculateEpf,
+  calculateEsi,
+  calculatePayroll,
+  epfWageCeilingOn,
+  esiCoveredForPeriod,
+  labourWelfareFund,
+  professionalTax,
+  statutoryWages,
 } from './index.js';
 import type { EmployeePayrollProfile, PayrollInput } from './types.js';
 
@@ -10,16 +17,38 @@ const R = (n: number) => n * 100;
 
 function employee(overrides: Partial<EmployeePayrollProfile> = {}): EmployeePayrollProfile {
   return {
-    id: 'E001', name: 'Test Employee', branch: 'Mumbai', state: 'Maharashtra', payGroup: 'Monthly',
-    joinDate: '2020-01-01', dateOfBirth: '1990-01-01', gender: 'male', bankAccountLast4: null, bankReady: false,
-    monthlyBasic: R(25000), monthlyHra: R(10000), monthlySpecial: R(15000), taxRegime: 'new',
-    oldRegimeAnnualDeductions: 0, annualOtherIncome: 0, annualPriorEmployerTaxableSalary: 0,
-    taxAlreadyDeducted: 0, pfMember: true, pfOnActualWages: false, epsMember: true, esiMember: false,
+    id: 'E001',
+    name: 'Test Employee',
+    branch: 'Mumbai',
+    state: 'Maharashtra',
+    payGroup: 'Monthly',
+    joinDate: '2020-01-01',
+    dateOfBirth: '1990-01-01',
+    gender: 'male',
+    bankAccountLast4: null,
+    bankReady: false,
+    monthlyBasic: R(25000),
+    monthlyHra: R(10000),
+    monthlySpecial: R(15000),
+    taxRegime: 'new',
+    oldRegimeAnnualDeductions: 0,
+    annualOtherIncome: 0,
+    annualPriorEmployerTaxableSalary: 0,
+    taxAlreadyDeducted: 0,
+    pfMember: true,
+    pfOnActualWages: false,
+    epsMember: true,
+    esiMember: false,
     ...overrides,
   };
 }
 const input = (overrides: Partial<PayrollInput> = {}): PayrollInput => ({
-  employeeId: 'E001', variablePay: 0, otherDeduction: 0, unpaidDays: 0, workingDays: 30, ...overrides,
+  employeeId: 'E001',
+  variablePay: 0,
+  otherDeduction: 0,
+  unpaidDays: 0,
+  workingDays: 30,
+  ...overrides,
 });
 const october = { year: 2026, month: 10, paymentDate: '2026-10-31' };
 
@@ -74,13 +103,17 @@ describe('EPF, EPS and EDLI', () => {
   });
   test('October 2026 uses the ₹25,000 ceiling (₹2,083 EPS, ₹917 EPF)', () => {
     const epf = calculateEpf({ ...base, wages: R(40000), year: 2026, month: 10 });
-    assert.deepEqual([epf.employee, epf.employerEps, epf.employerEpf, epf.edli, epf.adminCharges],
-      [R(3000), R(2083), R(917), R(125), R(125)]);
+    assert.deepEqual(
+      [epf.employee, epf.employerEps, epf.employerEpf, epf.edli, epf.adminCharges],
+      [R(3000), R(2083), R(917), R(125), R(125)],
+    );
   });
   test('voluntary contribution on actual wages keeps EPS and EDLI at the ceiling', () => {
     const epf = calculateEpf({ ...base, onActualWages: true, wages: R(40000), year: 2026, month: 10 });
-    assert.deepEqual([epf.employee, epf.employerEps, epf.employerEpf, epf.edli, epf.adminCharges],
-      [R(4800), R(2083), R(2717), R(125), R(200)]);
+    assert.deepEqual(
+      [epf.employee, epf.employerEps, epf.employerEpf, epf.edli, epf.adminCharges],
+      [R(4800), R(2083), R(2717), R(125), R(200)],
+    );
   });
   test('EPS stops on the 58th birthday and the employer share moves to EPF', () => {
     const turning = calculateEpf({ ...base, dateOfBirth: '1968-10-15', wages: R(25000), year: 2026, month: 10 });
@@ -101,8 +134,12 @@ describe('ESI', () => {
     assert.equal(esiCoveredForPeriod(R(21001)), false);
   });
   test('0.75% and 3.25%, rounded up to the next rupee', () => {
-    assert.deepEqual(calculateEsi({ wages: R(18000), covered: true, paidDays: 30 }),
-      { wages: R(18000), employee: R(135), employer: R(585), continuedAboveCeiling: false });
+    assert.deepEqual(calculateEsi({ wages: R(18000), covered: true, paidDays: 30 }), {
+      wages: R(18000),
+      employee: R(135),
+      employer: R(585),
+      continuedAboveCeiling: false,
+    });
     const odd = calculateEsi({ wages: R(18010), covered: true, paidDays: 30 });
     assert.deepEqual([odd.employee, odd.employer], [R(136), R(586)]);
   });
@@ -149,17 +186,29 @@ describe('professional tax', () => {
 
 describe('labour welfare fund', () => {
   test('fixed contributions fall only in their deduction months', () => {
-    assert.deepEqual(labourWelfareFund({ state: 'Karnataka', month: 12, date: '2026-12-01', monthlyGross: R(50000) }),
-      { employee: R(50), employer: R(100), note: 'Karnataka LWF: ₹50 + ₹100 employer, annually in December' });
-    assert.equal(labourWelfareFund({ state: 'Karnataka', month: 11, date: '2026-11-01', monthlyGross: R(50000) })?.employee, 0);
-    assert.equal(labourWelfareFund({ state: 'Maharashtra', month: 6, date: '2026-06-01', monthlyGross: R(50000) })?.employer, R(75));
+    assert.deepEqual(labourWelfareFund({ state: 'Karnataka', month: 12, date: '2026-12-01', monthlyGross: R(50000) }), {
+      employee: R(50),
+      employer: R(100),
+      note: 'Karnataka LWF: ₹50 + ₹100 employer, annually in December',
+    });
+    assert.equal(
+      labourWelfareFund({ state: 'Karnataka', month: 11, date: '2026-11-01', monthlyGross: R(50000) })?.employee,
+      0,
+    );
+    assert.equal(
+      labourWelfareFund({ state: 'Maharashtra', month: 6, date: '2026-06-01', monthlyGross: R(50000) })?.employer,
+      R(75),
+    );
   });
   test('Haryana: 0.2% of wages with the cap indexed each January', () => {
     const y2026 = labourWelfareFund({ state: 'Haryana', month: 3, date: '2026-03-01', monthlyGross: R(50000) });
     assert.deepEqual([y2026?.employee, y2026?.employer], [R(35), R(70)]);
     const y2025 = labourWelfareFund({ state: 'Haryana', month: 6, date: '2025-06-01', monthlyGross: R(50000) });
     assert.deepEqual([y2025?.employee, y2025?.employer], [R(34), R(68)]);
-    assert.equal(labourWelfareFund({ state: 'Haryana', month: 6, date: '2026-06-01', monthlyGross: R(10000) })?.employee, R(20));
+    assert.equal(
+      labourWelfareFund({ state: 'Haryana', month: 6, date: '2026-06-01', monthlyGross: R(10000) })?.employee,
+      R(20),
+    );
   });
 });
 
@@ -179,7 +228,13 @@ describe('payroll line', () => {
     const pay = { monthlyBasic: R(75000), monthlyHra: R(30000), monthlySpecial: R(45000) };
     const longServing = calculatePayroll(employee(pay), input(), october);
     const newJoiner = calculatePayroll(employee({ ...pay, joinDate: '2026-09-01' }), input(), october);
-    assert.equal(longServing.incomeTax, R(25133)); // ₹18 lakh projected, spread over October–March
+    assert.equal(longServing.incomeTax, R(12567)); // ₹1,50,800 on ₹18 lakh, spread evenly over twelve months
+    const withHistory = calculatePayroll(
+      employee({ ...pay, salaryPaidThisYear: R(150000 * 6), taxAlreadyDeducted: 0 }),
+      input(),
+      october,
+    );
+    assert.equal(withHistory.incomeTax, R(25133)); // no TDS so far: the year's tax is recovered over October–March
     assert.equal(newJoiner.incomeTax, 0); // ₹10.5 lakh projected: within the rebate
   });
   test('loss of pay in the current month is not extrapolated to the rest of the year', () => {
@@ -190,7 +245,10 @@ describe('payroll line', () => {
   });
   test('unknown states block the line until rules are reviewed', () => {
     const line = calculatePayroll(employee({ state: 'Goa', bankReady: true }), input(), october);
-    assert.deepEqual(line.flags.map(flag => flag.code), ['PT_RULE_MISSING', 'LWF_RULE_MISSING']);
+    assert.deepEqual(
+      line.flags.map(flag => flag.code),
+      ['PT_RULE_MISSING', 'LWF_RULE_MISSING'],
+    );
   });
   test('September 2026 lines record the EPF ceiling split', () => {
     const line = calculatePayroll(employee(), input(), { year: 2026, month: 9, paymentDate: '2026-09-30' });
@@ -198,9 +256,15 @@ describe('payroll line', () => {
     assert.equal(line.pfEmployee, R(2360)); // (₹8,000 + ₹11,666.67) × 12%
   });
   test('net always equals gross less deductions', () => {
-    for (const unpaidDays of [0, 3, 30]) for (const variablePay of [0, R(12345)]) for (const state of ['Karnataka', 'Haryana', 'Tamil Nadu']) {
-      const line = calculatePayroll(employee({ state, esiMember: true }), input({ unpaidDays, variablePay }), october);
-      assert.equal(line.gross - line.deductions, line.net);
-    }
+    for (const unpaidDays of [0, 3, 30])
+      for (const variablePay of [0, R(12345)])
+        for (const state of ['Karnataka', 'Haryana', 'Tamil Nadu']) {
+          const line = calculatePayroll(
+            employee({ state, esiMember: true }),
+            input({ unpaidDays, variablePay }),
+            october,
+          );
+          assert.equal(line.gross - line.deductions, line.net);
+        }
   });
 });

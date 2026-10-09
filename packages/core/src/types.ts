@@ -24,7 +24,7 @@ export interface EmployeePayrollProfile {
   annualPriorEmployerTaxableSalary: Money;
   /**
    * Taxable salary already paid by this employer earlier in the tax year. When omitted, the regular
-   * monthly salary is assumed for each month employed before the current one.
+   * monthly salary is assumed for each month employed before the current one, with TDS deducted evenly.
    */
   salaryPaidThisYear?: Money;
   /** TDS already deducted by this employer earlier in the tax year. */
