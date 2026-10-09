@@ -19,6 +19,8 @@ const FINANCE: Role[] = ['finance-approver'];
 export const PERMISSIONS = {
   'employees.read': STAFF,
   'employees.write': PEOPLE_EDITORS,
+  /** Approve or reject anyone's leave and verify tax declarations. Managers decide their own team's leave. */
+  'leave.manage': PEOPLE_EDITORS,
   'hierarchy.read': STAFF,
   'runs.read': STAFF,
   'runs.create': PREPARERS,

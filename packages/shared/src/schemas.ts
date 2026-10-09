@@ -1,5 +1,13 @@
 import { z } from 'zod';
-import { EMPLOYMENT_TYPES, GENDERS, REPORT_KINDS, SUPPORTED_WORK_STATES, TAX_REGIMES } from './constants.js';
+import {
+  EMPLOYMENT_TYPES,
+  GENDERS,
+  LEAVE_STATUSES,
+  LEAVE_TYPES,
+  REPORT_KINDS,
+  SUPPORTED_WORK_STATES,
+  TAX_REGIMES,
+} from './constants.js';
 import { ROLES } from './roles.js';
 
 export const isoDate = z.string().refine(value => {
@@ -57,6 +65,7 @@ export const signupBody = z
     path: ['branches'],
   });
 export const viewAsBody = z.object({ role: z.enum(ROLES) });
+export const switchOrganizationBody = z.object({ organizationId: id });
 
 // Auth and accounts
 export const loginBody = z.object({ username: z.string().max(120), password: z.string().min(1).max(256) });
@@ -71,10 +80,11 @@ export const inviteBody = z
     message: 'Employee access needs a linked employee ID; other roles must not have one',
     path: ['employeeId'],
   });
+/** New people choose a name and password; someone who already has a PayFlow account confirms its password. */
 export const acceptInviteBody = z.object({
   token: z.string().min(20).max(100),
-  displayName: z.string().trim().min(2).max(120),
-  password: passwordSchema,
+  displayName: z.string().trim().min(2).max(120).optional(),
+  password: z.string().min(1).max(256),
 });
 
 // Employees
@@ -114,7 +124,8 @@ export const createEmployeeBody = z
     monthlyBasic: paise,
     monthlyHra: paise,
     monthlySpecial: paise,
-    leaveBalanceDays: z.number().int().min(0).max(365).default(0),
+    /** Earned leave brought forward from a previous employer arrangement, up to the 30-day limit. */
+    carriedForwardLeave: z.number().int().min(0).max(30).default(0),
     pfMember: z.boolean().default(false),
     esiMember: z.boolean().default(false),
   })
@@ -153,6 +164,67 @@ export const salaryRevisionBody = z.object({
 });
 export const exitBody = z.object({ exitDate: isoDate, reason: optionalText(200) });
 
+// Tax declarations (Form 124)
+const pan = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Use a PAN like ABCDE1234F');
+const yearly = paise.max(1_00_00_000_00);
+export const declarationBody = z
+  .object({
+    monthlyRent: paise.max(10_00_000_00),
+    rentCity: optionalText(60),
+    landlordPan: z.preprocess(value => (value === '' ? null : value), pan.nullable()).default(null),
+    landlordRelation: optionalText(40),
+    section123: yearly,
+    npsAdditional: yearly,
+    healthSelf: yearly,
+    healthParents: yearly,
+    parentsSenior: z.boolean().default(false),
+    homeLoanInterest: yearly,
+  })
+  .refine(body => body.monthlyRent === 0 || Boolean(body.rentCity), {
+    message: 'Enter the city of the rented home',
+    path: ['rentCity'],
+  })
+  .refine(body => body.monthlyRent * 12 <= 1_00_000_00 || Boolean(body.landlordPan), {
+    message: 'Landlord PAN is required when rent is above ₹1,00,000 a year',
+    path: ['landlordPan'],
+  });
+
+// Leave
+export const leaveRequestBody = z
+  .object({ type: z.enum(LEAVE_TYPES), from: isoDate, to: isoDate, reason: optionalText(300) })
+  .refine(body => body.from <= body.to, { message: 'The leave must end on or after its first day', path: ['to'] })
+  .refine(body => body.from.slice(0, 4) === body.to.slice(0, 4), {
+    message: 'Split leave that crosses into a new year into two requests',
+    path: ['to'],
+  });
+export const leaveDecisionBody = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  note: optionalText(300),
+});
+export const leaveListQuery = z.object({
+  page: pageQuery.page,
+  size: pageQuery.size,
+  scope: z.enum(['team', 'all']).default('all'),
+  status: z.union([z.enum(LEAVE_STATUSES), z.literal('')]).default('pending'),
+});
+export const carryForwardBody = z.object({ days: z.number().int().min(0).max(30) });
+
+// Workspace
+export const auditQuery = z.object({
+  page: pageQuery.page,
+  size: z.coerce.number().int().min(1).max(100).default(25),
+  actor: z.string().trim().max(120).default(''),
+  action: z.string().trim().max(80).default(''),
+  from: z.union([isoDate, z.literal('')]).default(''),
+  to: z.union([isoDate, z.literal('')]).default(''),
+});
+export const searchQuery = z.object({ q: z.string().trim().min(1).max(60) });
+export const notificationsReadBody = z.object({ ids: z.array(z.number().int().positive()).max(200).optional() });
+
 // Payroll runs
 export const createRunBody = z.object({
   year: z.number().int().min(2020).max(2100),
@@ -176,3 +248,8 @@ export type UpdateEmployeeBody = z.infer<typeof updateEmployeeBody>;
 export type SalaryRevisionBody = z.input<typeof salaryRevisionBody>;
 export type CreateRunBody = z.input<typeof createRunBody>;
 export type LineListQuery = z.infer<typeof lineListQuery>;
+export type DeclarationBody = z.input<typeof declarationBody>;
+export type DeclarationInput = z.output<typeof declarationBody>;
+export type LeaveRequestBody = z.input<typeof leaveRequestBody>;
+export type LeaveListQuery = z.infer<typeof leaveListQuery>;
+export type AuditQuery = z.infer<typeof auditQuery>;

@@ -1,4 +1,4 @@
-import { SUPPORTED_STATES } from '@payflow/core';
+import { HRA_METRO_CITIES, SUPPORTED_STATES } from '@payflow/core';
 
 export const EMPLOYMENT_TYPES = ['contractor', 'casual', 'fixed_term', 'probation', 'permanent'] as const;
 export type EmploymentType = (typeof EMPLOYMENT_TYPES)[number];
@@ -59,3 +59,32 @@ export const IMPORT_COLUMNS = [
 
 export const SAMPLE_COMPANY_SIZE = 240;
 export const INVITATION_DAYS = 7;
+
+/** Cities where the HRA exemption may reach 50% of basic pay (Income-tax Rules, 2026, rule 279). */
+export const HRA_CITIES: readonly string[] = HRA_METRO_CITIES;
+export const DECLARATION_STATUSES = ['submitted', 'verified'] as const;
+export type DeclarationStatus = (typeof DECLARATION_STATUSES)[number];
+
+export const LEAVE_TYPES = ['earned', 'sick', 'unpaid'] as const;
+export type LeaveType = (typeof LEAVE_TYPES)[number];
+/** Sick and casual leave a year, pro-rated by month for joiners. State shops and establishments rules vary. */
+export const SICK_LEAVE_DAYS = 12;
+export const LEAVE_TYPE_DETAILS: Record<LeaveType, { label: string; paid: boolean; rule: string }> = {
+  earned: {
+    label: 'Earned leave',
+    paid: true,
+    rule: 'OSH Code s. 32: one day for every 20 days worked last year, once 180 days are worked; up to 30 days carry forward',
+  },
+  sick: {
+    label: 'Sick and casual leave',
+    paid: true,
+    rule: `${SICK_LEAVE_DAYS} days a year, pro-rated for joiners; state shops and establishments rules may differ`,
+  },
+  unpaid: {
+    label: 'Leave without pay',
+    paid: false,
+    rule: 'Approved days are deducted as loss of pay in that month’s payroll run',
+  },
+};
+export const LEAVE_STATUSES = ['pending', 'approved', 'rejected', 'cancelled'] as const;
+export type LeaveStatus = (typeof LEAVE_STATUSES)[number];

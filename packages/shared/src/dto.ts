@@ -1,8 +1,26 @@
-import type { Gender, PayrollFlag, PayrollLine, TaxRegime } from '@payflow/core';
-import type { EmploymentType, RunStatus } from './constants.js';
+import type {
+  DeductionLine,
+  Gender,
+  PayrollFlag,
+  PayrollLine,
+  RegimeComparison,
+  RegimeResult,
+  TaxDeclaration,
+  TaxRegime,
+} from '@payflow/core';
+import type { DeclarationStatus, EmploymentType, LeaveStatus, LeaveType, RunStatus } from './constants.js';
 import type { Role } from './roles.js';
 
-export type { Gender, PayrollFlag, PayrollLine, TaxRegime };
+export type {
+  DeductionLine,
+  Gender,
+  PayrollFlag,
+  PayrollLine,
+  RegimeComparison,
+  RegimeResult,
+  TaxDeclaration,
+  TaxRegime,
+};
 
 export interface User {
   id: string;
@@ -65,7 +83,6 @@ export interface Employee {
   monthlyHra: number;
   monthlySpecial: number;
   taxRegime: TaxRegime;
-  oldRegimeAnnualDeductions: number;
   pfMember: boolean;
   pfOnActualWages: boolean;
   epsMember: boolean;
@@ -80,9 +97,11 @@ export interface Employee {
   phone: string | null;
   employmentStatus: 'active' | 'exited';
   payrollScope: boolean;
+  /** Earned leave still available this calendar year. */
   leaveBalanceDays: number;
+  /** Paid leave (earned, sick and casual) approved this calendar year. */
   leaveTakenDays: number;
-  /** Attendance in the organization's latest run. */
+  /** Attendance in the organization's latest run, including approved leave without pay. */
   workingDays: number | null;
   unpaidDays: number | null;
 }
@@ -126,8 +145,18 @@ export interface RunSummary extends RunPeriod {
 /** Employees only see the period and status of a run, never organization totals. */
 export type RunView = RunSummary | RunPeriod;
 
+/** An organization the signed-in person belongs to, for the organization switcher. */
+export interface OrganizationChoice {
+  id: string;
+  name: string;
+  role: Role;
+  isSample: boolean;
+}
+
 export interface Bootstrap {
   organization: Organization;
+  /** Every organization this person can switch to, including the current one. */
+  organizations: OrganizationChoice[];
   /** The most recent pay period, or null for a new organization without runs. */
   currentRun: RunView | null;
   /** Roles this user can switch to with "View as" (sample companies only). */
@@ -155,6 +184,8 @@ export interface InvitationPreview {
   organizationName: string;
   email: string;
   role: Role;
+  /** The email already has a PayFlow account: the invitee confirms its password instead of choosing one. */
+  existingAccount: boolean;
 }
 
 export interface RunException extends PayrollFlag {
@@ -213,6 +244,112 @@ export interface ComplianceRules {
   ruleVersion: string;
   reviewedTaxYear: string;
   states: StateRuleSummary[];
+}
+
+export interface AuditPage extends Page<AuditEvent> {
+  /** Everyone who appears in the organization's audit trail, for the actor filter. */
+  actors: string[];
+}
+
+// Tax declarations and regimes
+
+export interface Declaration extends TaxDeclaration {
+  landlordRelation: string | null;
+  /** Calendar year the tax year starts in (2026 for 2026-27). */
+  taxYear: number;
+  status: DeclarationStatus;
+  submittedAt: string;
+  verifiedBy: string | null;
+  verifiedAt: string | null;
+}
+export interface TaxSummary {
+  employeeId: string;
+  taxYearLabel: string;
+  /** The pay month the projection is made for. */
+  period: { year: number; month: number };
+  regime: TaxRegime;
+  /** The regime is chosen while the current run is a draft. */
+  regimeLocked: boolean;
+  declaration: Declaration | null;
+  comparison: RegimeComparison;
+}
+
+// Leave
+
+export interface LeaveRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  type: LeaveType;
+  from: string;
+  to: string;
+  days: number;
+  reason: string | null;
+  status: LeaveStatus;
+  decidedBy: string | null;
+  decidedAt: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+}
+export interface LeaveBalance {
+  type: LeaveType;
+  /** Days granted for the year; null for leave without pay, which has no balance. */
+  entitled: number | null;
+  carriedForward: number;
+  taken: number;
+  pending: number;
+  available: number | null;
+}
+export interface LeaveSummary {
+  employeeId: string;
+  year: number;
+  balances: LeaveBalance[];
+  requests: LeaveRequest[];
+  /** Earned leave accrual facts for the year (OSH Code s. 32). */
+  earned: { daysWorkedLastYear: number; qualifies: boolean };
+}
+
+// Notifications, search and analytics
+
+export interface AppNotification {
+  id: number;
+  kind: string;
+  title: string;
+  body: string | null;
+  /** In-app path to open, such as /payroll/<id>. */
+  link: string | null;
+  read: boolean;
+  createdAt: string;
+}
+export interface NotificationFeed {
+  unread: number;
+  items: AppNotification[];
+}
+export interface SearchResults {
+  people: Array<{ id: string; name: string; jobTitle: string; branch: string; status: 'active' | 'exited' }>;
+  runs: Array<{ id: string; year: number; month: number; status: RunStatus; payGroupName: string }>;
+}
+export interface Analytics {
+  /** One point per month with a calculated run, oldest first. */
+  trend: Array<{
+    year: number;
+    month: number;
+    status: RunStatus;
+    headcount: number;
+    gross: number;
+    net: number;
+    deductions: number;
+    employerCost: number;
+  }>;
+  /** The run the breakdowns describe: the latest month with calculated lines. */
+  latest: { runId: string; year: number; month: number; status: RunStatus } | null;
+  departments: Array<{ department: string; headcount: number; gross: number; employerCost: number }>;
+  /** Statutory amounts in the latest run, employee and employer shares together. */
+  statutory: Array<{ label: string; amount: number }>;
+  levels: Array<{ level: number; label: string; count: number }>;
+  employmentTypes: Array<{ type: EmploymentType; count: number }>;
+  /** Largest month-over-month changes in gross pay against the previous month. */
+  changes: Array<{ employeeId: string; name: string; department: string; previous: number; current: number }>;
 }
 
 export interface ApiError {
