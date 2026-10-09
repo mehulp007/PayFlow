@@ -2,6 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'vitest';
 import {
   annualIncomeTax,
+  compareRegimes,
+  earnedLeaveEntitlement,
+  EMPTY_DECLARATION,
+  leaveDays,
+  leaveDaysInMonth,
+  oldRegimeDeductions,
   calculateEpf,
   calculateEsi,
   calculatePayroll,
@@ -11,7 +17,7 @@ import {
   professionalTax,
   statutoryWages,
 } from './index.js';
-import type { EmployeePayrollProfile, PayrollInput } from './types.js';
+import type { EmployeePayrollProfile, PayrollInput, TaxDeclaration } from './types.js';
 
 const R = (n: number) => n * 100;
 
@@ -31,7 +37,7 @@ function employee(overrides: Partial<EmployeePayrollProfile> = {}): EmployeePayr
     monthlyHra: R(10000),
     monthlySpecial: R(15000),
     taxRegime: 'new',
-    oldRegimeAnnualDeductions: 0,
+    declaration: null,
     annualOtherIncome: 0,
     annualPriorEmployerTaxableSalary: 0,
     taxAlreadyDeducted: 0,
@@ -287,5 +293,123 @@ describe('review flags', () => {
   test('an exit in the period reminds payroll of the two-day final settlement', () => {
     const line = calculatePayroll(employee({ bankReady: true, exitDate: '2026-10-20' }), input(), october);
     assert.ok(line.flags.some(flag => flag.code === 'FINAL_SETTLEMENT' && flag.message.includes('2026-10-20')));
+  });
+});
+
+describe('old-regime declarations (Form 124)', () => {
+  const salary = {
+    annualBasic: R(600000),
+    annualHra: R(300000),
+    annualEmployeePf: 0,
+    annualProfessionalTax: 0,
+    age: 40,
+  };
+  const declare = (overrides: Partial<TaxDeclaration>): TaxDeclaration => ({ ...EMPTY_DECLARATION, ...overrides });
+  const allowed = (result: ReturnType<typeof oldRegimeDeductions>, code: string) =>
+    result.lines.find(line => line.code === code)?.allowed;
+
+  test('Bengaluru rent qualifies for the 50% HRA limit from 2026-27; Gurugram stays at 40%', () => {
+    const bengaluru = oldRegimeDeductions(declare({ monthlyRent: R(30000), rentCity: 'Bengaluru' }), salary);
+    const gurugram = oldRegimeDeductions(declare({ monthlyRent: R(30000), rentCity: 'Gurugram' }), salary);
+    assert.equal(allowed(bengaluru, 'hra'), R(300000));
+    assert.equal(allowed(gurugram, 'hra'), R(240000));
+  });
+  test('rent below 10% of basic gives no HRA exemption', () => {
+    assert.equal(allowed(oldRegimeDeductions(declare({ monthlyRent: R(4000), rentCity: 'Pune' }), salary), 'hra'), 0);
+  });
+  test('employee PF counts towards the ₹1,50,000 limit of s. 123', () => {
+    const context = { ...salary, annualEmployeePf: R(21600) };
+    assert.equal(allowed(oldRegimeDeductions(declare({ section123: R(120000) }), context), 'section-123'), R(141600));
+    assert.equal(allowed(oldRegimeDeductions(declare({ section123: R(140000) }), context), 'section-123'), R(150000));
+  });
+  test('health insurance, NPS, home loan and professional tax limits', () => {
+    const result = oldRegimeDeductions(
+      declare({
+        healthSelf: R(30000),
+        healthParents: R(60000),
+        parentsSenior: true,
+        npsAdditional: R(80000),
+        homeLoanInterest: R(250000),
+      }),
+      { ...salary, annualProfessionalTax: R(3000) },
+    );
+    assert.equal(allowed(result, 'section-126'), R(75000));
+    assert.equal(allowed(result, 'section-124'), R(50000));
+    assert.equal(allowed(result, 'home-loan'), R(200000));
+    assert.equal(allowed(result, 'professional-tax'), R(2500));
+    assert.equal(result.total, R(327500));
+  });
+});
+
+describe('regime comparison', () => {
+  const highEarner = employee({
+    monthlyBasic: R(100000),
+    monthlyHra: R(50000),
+    monthlySpecial: R(50000),
+    epsMember: false,
+    taxRegime: 'old',
+    declaration: {
+      ...EMPTY_DECLARATION,
+      monthlyRent: R(60000),
+      rentCity: 'Mumbai',
+      section123: R(150000),
+      npsAdditional: R(50000),
+      healthSelf: R(25000),
+    },
+  });
+
+  test('large declared deductions make the old regime cheaper', () => {
+    const comparison = compareRegimes(highEarner, october);
+    assert.equal(comparison.projectedGross, R(2400000));
+    assert.equal(comparison.new.total, R(292500));
+    assert.equal(comparison.old.deductions.total, R(827500));
+    assert.equal(comparison.old.taxableIncome, R(1522500));
+    assert.equal(comparison.old.total, R(280020));
+    assert.equal(comparison.recommended, 'old');
+    assert.equal(comparison.saving, R(12480));
+  });
+  test('without declarations the new regime is recommended', () => {
+    const comparison = compareRegimes({ ...highEarner, declaration: null }, october);
+    assert.equal(comparison.recommended, 'new');
+  });
+  test('the payroll line uses the same old-regime deductions as the comparison', () => {
+    const line = calculatePayroll(highEarner, input(), october);
+    assert.equal(line.taxDeductionsAllowed, R(827500));
+    assert.equal(line.annualProjectedTax, R(280020));
+    assert.equal(line.incomeTax, compareRegimes(highEarner, october).old.monthlyTds);
+  });
+});
+
+describe('month-over-month review', () => {
+  test('gross pay moving more than 25% from last month is flagged', () => {
+    const flagged = (previousGross: number) =>
+      calculatePayroll(employee({ bankReady: true, previousGross }), input(), october).flags.find(
+        flag => flag.code === 'PAY_CHANGE',
+      );
+    assert.equal(flagged(R(40000)), undefined);
+    assert.match(flagged(R(39000))!.message, /up 28%/);
+    assert.match(flagged(R(70000))!.message, /down 29%/);
+  });
+  test('approved unpaid leave is explained on the line', () => {
+    const line = calculatePayroll(employee(), input({ unpaidDays: 3, unpaidLeaveDays: 2 }), october);
+    assert.ok(line.ruleNotes.includes('Includes 2 days of approved leave without pay'));
+    assert.equal(line.ncpDays, 3);
+  });
+});
+
+describe('leave under the OSH Code', () => {
+  test('leave days skip Sundays and split across months', () => {
+    assert.equal(leaveDays('2026-10-05', '2026-10-11'), 6);
+    assert.equal(leaveDaysInMonth('2026-09-28', '2026-10-03', 2026, 10), 3);
+    assert.equal(leaveDaysInMonth('2026-09-28', '2026-10-03', 2026, 9), 3);
+  });
+  test('one day of earned leave for every 20 days worked, once 180 days are worked', () => {
+    assert.deepEqual(earnedLeaveEntitlement({ joinDate: '2020-01-01' }, 2026), {
+      daysWorked: 313,
+      qualifies: true,
+      days: 15,
+    });
+    assert.equal(earnedLeaveEntitlement({ joinDate: '2025-09-01' }, 2026).days, 0);
+    assert.equal(earnedLeaveEntitlement({ joinDate: '2026-02-01' }, 2026).daysWorked, 0);
   });
 });

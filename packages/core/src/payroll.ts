@@ -1,9 +1,10 @@
 import { calculateEpf, calculateEsi, monthStart, roundRupee, statutoryWages } from './statutory.js';
 import { labourWelfareFund, professionalTax, STATE_RULES_VERSION } from './stateRules.js';
-import { ageOn, annualIncomeTax } from './tax.js';
-import type { EmployeePayrollProfile, PayrollInput, PayrollLine, PayrollPeriod } from './types.js';
+import { oldRegimeDeductions, type OldRegimeDeductions } from './declarations.js';
+import { ageOn, annualIncomeTax, type TaxCalculation } from './tax.js';
+import type { EmployeePayrollProfile, Money, PayrollInput, PayrollLine, PayrollPeriod, TaxRegime } from './types.js';
 
-export const RULE_VERSION = `IN-TY2026-27-v2+${STATE_RULES_VERSION}`;
+export const RULE_VERSION = `IN-TY2026-27-v3+${STATE_RULES_VERSION}`;
 /** The tax year whose rates and thresholds this rule pack was reviewed against (April 2026 – March 2027). */
 export const REVIEWED_TAX_YEAR = { startYear: 2026, label: '2026–27' } as const;
 
@@ -21,6 +22,73 @@ function monthsEmployedBefore(joinDate: string, period: PayrollPeriod): number {
   const fromYear = Number(from.slice(0, 4));
   const fromMonth = Number(from.slice(5, 7));
   return (period.year - fromYear) * 12 + (period.month - fromMonth);
+}
+
+/** Month-over-month change in gross pay that is flagged for review. */
+export const PAY_CHANGE_THRESHOLD = 0.25;
+
+/** Months of the tax year employed before the current one, and the months still to come after it. */
+function taxMonths(employee: EmployeePayrollProfile, period: PayrollPeriod) {
+  return {
+    before: monthsEmployedBefore(employee.joinDate, period),
+    after: 12 - taxYearMonthIndex(period.month),
+  };
+}
+
+/** Professional tax over the months employed in the tax year, at the regular monthly gross. */
+function annualProfessionalTax(employee: EmployeePayrollProfile, regularMonthly: Money, months: number): Money {
+  let year = 0;
+  for (let month = 1; month <= 12; month++) {
+    year +=
+      professionalTax({ state: employee.state, month, monthlyGross: regularMonthly, gender: employee.gender })
+        ?.amount ?? 0;
+  }
+  return Math.round((year * months) / 12);
+}
+
+/**
+ * Projects the tax year for one regime: salary already paid (or the regular salary for earlier months),
+ * this month's pay and regular pay to March. Returns the annual tax, the deductions used, and this month's
+ * TDS, which spreads the tax still due evenly over the remaining months (s. 392).
+ */
+export function projectTax(
+  employee: EmployeePayrollProfile,
+  period: PayrollPeriod,
+  current: { currentGross: Money; monthlyEmployeePf: Money },
+  regime: TaxRegime = employee.taxRegime,
+): { projected: TaxCalculation; deductions: OldRegimeDeductions; projectedGross: Money; monthlyTds: Money } {
+  const regularMonthly = employee.monthlyBasic + employee.monthlyHra + employee.monthlySpecial;
+  const months = taxMonths(employee, period);
+  const monthsInYear = months.before + 1 + months.after;
+  const salaryBefore = employee.salaryPaidThisYear ?? regularMonthly * months.before;
+  const projectedGross =
+    salaryBefore + current.currentGross + regularMonthly * months.after + employee.annualPriorEmployerTaxableSalary;
+  const yearEnd = `${period.year + (period.month > 3 ? 1 : 0)}-03-31`;
+  const age = ageOn(employee.dateOfBirth, yearEnd);
+  const deductions =
+    regime === 'old'
+      ? oldRegimeDeductions(employee.declaration, {
+          annualBasic: employee.monthlyBasic * monthsInYear,
+          annualHra: employee.monthlyHra * monthsInYear,
+          annualEmployeePf: current.monthlyEmployeePf * monthsInYear,
+          annualProfessionalTax: annualProfessionalTax(employee, regularMonthly, monthsInYear),
+          age,
+        })
+      : { lines: [], total: 0 };
+  const projected = annualIncomeTax({
+    annualGrossSalary: projectedGross,
+    annualOtherIncome: employee.annualOtherIncome,
+    eligibleDeductions: deductions.total,
+    regime,
+    age,
+  });
+  // Without year-to-date figures, assume earlier months were paid at the regular salary with TDS spread evenly.
+  const taxDeductedBefore =
+    employee.salaryPaidThisYear === undefined
+      ? Math.max(employee.taxAlreadyDeducted, (projected.total * months.before) / monthsInYear)
+      : employee.taxAlreadyDeducted;
+  const monthlyTds = Math.max(0, roundRupee((projected.total - taxDeductedBefore) / (months.after + 1)));
+  return { projected, deductions, projectedGross, monthlyTds };
 }
 
 export function calculatePayroll(
@@ -100,26 +168,16 @@ export function calculatePayroll(
   const lwfEmployer = lwf?.employer ?? 0;
 
   // Income tax: project the year from salary already paid, this month's actual pay, and regular pay ahead.
-  const monthIndex = taxYearMonthIndex(period.month);
-  const monthsAfter = 12 - monthIndex;
-  const monthsBefore = monthsEmployedBefore(employee.joinDate, period);
-  const salaryBefore = employee.salaryPaidThisYear ?? regularMonthly * monthsBefore;
-  const projectedGross =
-    salaryBefore + gross + regularMonthly * monthsAfter + employee.annualPriorEmployerTaxableSalary;
-  const yearEnd = `${period.year + (period.month > 3 ? 1 : 0)}-03-31`;
-  const projected = annualIncomeTax({
-    annualGrossSalary: projectedGross,
-    annualOtherIncome: employee.annualOtherIncome,
-    eligibleDeductions: employee.taxRegime === 'old' ? employee.oldRegimeAnnualDeductions : 0,
-    regime: employee.taxRegime,
-    age: ageOn(employee.dateOfBirth, yearEnd),
-  });
-  // Without year-to-date figures, assume earlier months were paid at the regular salary with TDS spread evenly.
-  const taxDeductedBefore =
-    employee.salaryPaidThisYear === undefined
-      ? Math.max(employee.taxAlreadyDeducted, (projected.total * monthsBefore) / (monthsBefore + 1 + monthsAfter))
-      : employee.taxAlreadyDeducted;
-  const incomeTax = Math.max(0, roundRupee((projected.total - taxDeductedBefore) / (monthsAfter + 1)));
+  const tax = projectTax(employee, period, { currentGross: gross, monthlyEmployeePf: epf.employee });
+  const incomeTax = tax.monthlyTds;
+  if (employee.taxRegime === 'old') {
+    ruleNotes.push(
+      tax.deductions.total
+        ? `Old regime: ₹${(tax.deductions.total / 100).toLocaleString('en-IN')} of deductions allowed in the TDS projection`
+        : 'Old regime: no deductions declared beyond the standard deduction',
+    );
+  }
+  if (input.unpaidLeaveDays) ruleNotes.push(`Includes ${input.unpaidLeaveDays} days of approved leave without pay`);
 
   const otherDeduction = input.otherDeduction;
   const deductions = epf.employee + esi.employee + professionalTaxAmount + lwfEmployee + incomeTax + otherDeduction;
@@ -139,6 +197,15 @@ export function calculatePayroll(
   }
   if (gross > regularMonthly * 1.5) {
     flags.push({ code: 'HIGH_VARIANCE', severity: 'warning', message: 'Pay is over 50% above regular monthly salary' });
+  }
+  const previous = employee.previousGross;
+  if (previous && Math.abs(gross - previous) > previous * PAY_CHANGE_THRESHOLD) {
+    const change = Math.round(((gross - previous) / previous) * 100);
+    flags.push({
+      code: 'PAY_CHANGE',
+      severity: 'warning',
+      message: `Gross pay ${change > 0 ? 'up' : 'down'} ${Math.abs(change)}% on last month (₹${(previous / 100).toLocaleString('en-IN')})`,
+    });
   }
   const taxYearStart = period.month >= 4 ? period.year : period.year - 1;
   if (taxYearStart !== REVIEWED_TAX_YEAR.startYear) {
@@ -166,6 +233,8 @@ export function calculatePayroll(
     special,
     variablePay: input.variablePay,
     lossOfPay,
+    workingDays: input.workingDays,
+    paidDays,
     ncpDays: input.unpaidDays,
     gross,
     statutoryWages: wages,
@@ -188,7 +257,8 @@ export function calculatePayroll(
     deductions,
     net,
     employerCost,
-    annualProjectedTax: projected.total,
+    annualProjectedTax: tax.projected.total,
+    taxDeductionsAllowed: tax.deductions.total,
     ruleVersion: RULE_VERSION,
     ruleNotes,
     flags,

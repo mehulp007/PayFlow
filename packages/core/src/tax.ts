@@ -1,6 +1,7 @@
 import type { Money, TaxRegime } from './types.js';
 
 export interface TaxCalculation {
+  standardDeduction: Money;
   taxableIncome: Money;
   slabTax: Money;
   rebate: Money;
@@ -98,7 +99,15 @@ export function annualIncomeTax(args: {
     surcharge = Math.max(0, Math.min(surcharge, wholeRupee(maximum - afterRebate)));
   }
   const cess = wholeRupee((afterRebate + surcharge) * 0.04);
-  return { taxableIncome, slabTax: slab, rebate, surcharge, cess, total: afterRebate + surcharge + cess };
+  return {
+    standardDeduction,
+    taxableIncome,
+    slabTax: slab,
+    rebate,
+    surcharge,
+    cess,
+    total: afterRebate + surcharge + cess,
+  };
 }
 
 export function ageOn(dateOfBirth: string, date: string): number {
