@@ -11,15 +11,15 @@ against the official portals before relying on any figure.
 
 ### Income tax: Income-tax Act, 2025 (in force from 1 April 2026), tax year 2026-27
 
-| Item                 | Rule                                                                                                                                                                                                                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| New regime (default) | Nil to ₹4L · 5% to ₹8L · 10% to ₹12L · 15% to ₹16L · 20% to ₹20L · 25% to ₹24L · 30% above                                                                                                                                                                                                                        |
-| Old regime           | Nil to ₹2.5L (₹3L at 60+, ₹5L at 80+) · 5% to ₹5L · 20% to ₹10L · 30% above                                                                                                                                                                                                                                       |
-| Standard deduction   | ₹75,000 new regime, ₹50,000 old regime                                                                                                                                                                                                                                                                            |
-| Rebate               | New: up to ₹60,000 for taxable income up to ₹12L, with marginal relief just above. Old: up to ₹12,500 up to ₹5L                                                                                                                                                                                                   |
-| Surcharge and cess   | 10% / 15% / 25% / 37% (new regime capped at 25%) with marginal relief; 4% health and education cess                                                                                                                                                                                                               |
-| Monthly TDS (s. 392) | Annual tax is projected from salary paid earlier in the year, this month's actual pay and regular pay for the remaining months. Months before joining are not counted, and this month's loss of pay is not extrapolated. Tax already deducted is subtracted, and the balance is spread over the remaining months. |
-| Returns              | Quarterly salary TDS statement is **Form 138** (replaces 24Q); the annual certificate is **Form 130** (replaces Form 16)                                                                                                                                                                                          |
+| Item                 | Rule                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New regime (default) | Nil to ₹4L · 5% to ₹8L · 10% to ₹12L · 15% to ₹16L · 20% to ₹20L · 25% to ₹24L · 30% above                                                                                                                                                                                                                                                                                                                                       |
+| Old regime           | Nil to ₹2.5L (₹3L at 60+, ₹5L at 80+) · 5% to ₹5L · 20% to ₹10L · 30% above                                                                                                                                                                                                                                                                                                                                                      |
+| Standard deduction   | ₹75,000 new regime, ₹50,000 old regime                                                                                                                                                                                                                                                                                                                                                                                           |
+| Rebate               | New: up to ₹60,000 for taxable income up to ₹12L, with marginal relief just above. Old: up to ₹12,500 up to ₹5L                                                                                                                                                                                                                                                                                                                  |
+| Surcharge and cess   | 10% / 15% / 25% / 37% (new regime capped at 25%) with marginal relief; 4% health and education cess                                                                                                                                                                                                                                                                                                                              |
+| Monthly TDS (s. 392) | Annual tax is projected from salary actually paid earlier in the tax year (from approved runs), this month's actual pay and regular pay for the remaining months. TDS already deducted in those runs is subtracted and the balance is spread over the remaining months, so earlier under- or over-deduction is corrected going forward. Months before joining are not counted, and this month's loss of pay is not extrapolated. |
+| Returns              | Quarterly salary TDS statement is **Form 138** (replaces 24Q); the annual certificate is **Form 130** (replaces Form 16)                                                                                                                                                                                                                                                                                                         |
 
 ### Wages: Code on Wages, 2019 and Code on Social Security, 2020 (in force from 21 November 2025)
 
@@ -59,19 +59,41 @@ against the official portals before relying on any figure.
 | West Bengal | ₹110 / ₹130 / ₹150 / ₹200 monthly slabs above ₹10,000                                          | ₹3 + ₹30, June and December                                      |
 | Haryana     | Not levied                                                                                     | 0.2% of wages up to ₹35 (from Jan 2026), employer twice, monthly |
 
-States without a reviewed rule are **blocked** until rules are added. Maharashtra employees without a recorded
-gender get a review warning, because the women's exemption cannot be applied.
+States without a reviewed rule are **blocked** until rules are added: branches can only be created in the five
+states above, and each organization's compliance page lists the rules for its own states. The rule pack is
+maintained centrally rather than edited per organization, so no tenant can drift from the reviewed rates.
+Maharashtra employees without a recorded gender get a review warning, because the women's exemption cannot be
+applied.
+
+### Pay periods and employment events: Code on Wages, 2019, s. 17
+
+| Item                  | Rule                                                                                                                                                                                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Payment deadline      | Monthly wages must be paid before the 7th day of the following month (s. 17(1)). A run's payment date must fall between the first day of the month and the 7th of the next, or it cannot be created. |
+| One payment per month | A month cannot be paid twice for the same people: overlapping runs (same month, overlapping pay groups) are refused.                                                                                 |
+| Joining and leaving   | Calendar days before joining or after the last working day are unpaid, so the month is pro-rated automatically.                                                                                      |
+| Final settlement      | Wages due on exit, including on resignation, must be paid within two working days (s. 17(2)). Lines for a leaver carry a warning to settle separately from the monthly run.                          |
+| Salary revisions      | Effective-dated, starting on the first of a month after the last approved period. Approved runs are never recalculated.                                                                              |
+| Reviewed tax year     | Periods outside tax year 2026–27 carry a warning that rates must be verified for that year.                                                                                                          |
 
 ## Known limitations
 
 - Tamil Nadu PT uses six times the current month's gross as the half-yearly income, and slabs vary by local
   body; the Chennai corporation slab is used.
-- Salary paid and tax deducted earlier in the year are inputs. Until the app tracks multiple months, they default
-  to the regular salary since joining with TDS deducted evenly, so the current month carries one month's share.
+- Year-to-date figures come from runs approved in PayFlow. For an organization without approved history in the tax
+  year (for example a new organization starting mid-year), earlier months are assumed to have been paid at the
+  regular salary with TDS deducted evenly. Salary from a previous employer is an input (Form 12B in practice).
+- Mid-month salary revisions are not supported (revisions start on the first of a month), and arrears for approved
+  months are not modelled.
+- Final settlement within two working days is flagged, not computed: leave encashment, notice pay and gratuity on
+  exit are outside the monthly run.
 - Not yet modelled: HRA exemption and old-regime declarations in detail, perquisites, employer PF above ₹7.5L,
-  arrears, gratuity accrual, minimum-wage checks, mid-month joins/exits, and the ESI disability ceiling (₹25,000).
+  gratuity accrual, minimum-wage checks, and the ESI disability ceiling (₹25,000).
 
 ## Sources
+
+- [Code on Wages, 2019, s. 17: time limit for payment of wages](https://www.advocatekhoj.com/library/bareacts/codeonwages/17.php) · [Two-working-day final settlement](https://www.livelaw.in/articles/two-working-days-code-wages-employee-final-settlement-552780)
+- [TDS on salary at the average rate under section 392](https://www.taxheal.com/tds-on-salary-under-section-392-of-income-tax-act.html)
 
 - [Budget 2026-27 tax slabs (unchanged from 2025-26)](https://www.bankbazaar.com/tax/income-tax-slabs.html)
 - [TDS on salary under section 392](https://www.taxheal.com/tds-on-salary-under-section-392-of-income-tax-act.html) · [Form 130 replaces Form 16](https://taxguru.in/income-tax/form-130-tds-certificate-salary-replacing-form-16.html)
