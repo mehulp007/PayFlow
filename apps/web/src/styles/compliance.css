@@ -1,0 +1,162 @@
+.compliance-hero {
+  background: #eaf1ff;
+  border: 1px solid #d8e5fa;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 18px 22px;
+  margin-bottom: 17px;
+  color: #2d5ebc;
+}
+.compliance-hero div {
+  flex: 1;
+}
+.compliance-hero strong,
+.compliance-hero span {
+  display: block;
+}
+.compliance-hero strong {
+  color: #1b3f83;
+  font-size: 14px;
+}
+.compliance-hero div span {
+  color: #6a83ab;
+  font-size: 11px;
+  margin-top: 3px;
+}
+.compliance-grid,
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 13px;
+  margin-bottom: 17px;
+}
+.compliance-card {
+  padding: 19px;
+}
+.compliance-card p {
+  color: #8290a6;
+  font-size: 11px;
+  min-height: 64px;
+}
+.compliance-icon,
+.report-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: #e9f1ff;
+  color: #2c63c1;
+  margin-bottom: 16px;
+}
+.calendar-row,
+.control-metric,
+.detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #edf1f6;
+  padding: 11px 0;
+  font-size: 11px;
+}
+.calendar-row {
+  margin: 0 19px;
+}
+.calendar-row > span:first-child {
+  display: grid;
+  place-items: center;
+  background: #edf3ff;
+  color: #315fb2;
+  border-radius: 7px;
+  font-size: 9px;
+  padding: 4px 7px;
+}
+.calendar-row > span strong {
+  font-size: 16px;
+}
+.calendar-row div {
+  flex: 1;
+}
+.calendar-row div strong,
+.calendar-row div small {
+  display: block;
+}
+.calendar-row div small {
+  font-size: 10px;
+  color: #98a4b7;
+  margin-top: 3px;
+}
+.control-metric {
+  margin: 0 19px;
+}
+.control-metric strong {
+  font-size: 11px;
+}
+.report-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+.report-card {
+  padding: 20px;
+}
+.report-card p {
+  min-height: 33px;
+  font-size: 11px;
+  color: #8493a9;
+}
+.report-card .button {
+  margin-top: 10px;
+}
+.setup-card {
+  padding: 22px;
+}
+.setup-card > svg {
+  color: #2b5bb6;
+}
+.setup-card h2 {
+  margin-top: 12px;
+}
+.setup-card p {
+  font-size: 11px;
+  color: #8795a9;
+  margin-bottom: 20px;
+}
+.branch-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-top: 1px solid #eef1f5;
+  padding: 14px 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475c7d;
+}
+.branch-row svg:first-child {
+  color: #5980c4;
+}
+.branch-row svg:last-child,
+.branch-row .pill {
+  margin-left: auto;
+  color: #22a876;
+}
+.tab-bar {
+  display: flex;
+  gap: 5px;
+  border-bottom: 1px solid #e2e9f3;
+  margin-bottom: 17px;
+}
+.tab-bar button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 16px;
+  color: #73829a;
+  font-size: 11px;
+  font-weight: 800;
+}
+.tab-bar button.selected {
+  color: #265bbb;
+  border-bottom-color: #265bbb;
+}

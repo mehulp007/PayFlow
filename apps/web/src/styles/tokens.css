@@ -1,0 +1,12 @@
+/* Design tokens. Phase 3 adds a dark theme by redefining these values. */
+:root {
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-heading: Manrope, system-ui, sans-serif;
+  --color-primary: #2454bd;
+  --color-primary-hover: #1946a9;
+  --color-text: #142247;
+  --color-canvas: #f5f7fb;
+  --color-surface: #fff;
+  --color-border: #e4eaf3;
+  --color-text-muted: #8190a8;
+}

@@ -1,0 +1,214 @@
+.auth-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #526886;
+  font-weight: 700;
+}
+.auth-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(420px, 46%) 1fr;
+  background: var(--color-surface);
+}
+.auth-panel {
+  width: min(440px, calc(100% - 48px));
+  margin: auto;
+  padding: 38px 0;
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 70px;
+}
+.auth-brand strong {
+  display: block;
+  font:
+    800 18px Manrope,
+    sans-serif;
+  color: #142449;
+}
+.auth-brand small {
+  display: block;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+  color: #8ca0bc;
+  margin-top: 3px;
+}
+.auth-intro > span {
+  font-size: 10px;
+  color: #2455bb;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+}
+.auth-intro h1 {
+  font-size: 36px;
+  margin: 12px 0 9px;
+}
+.auth-intro p {
+  font-size: 14px;
+  color: #7888a2;
+  max-width: 380px;
+}
+.auth-form {
+  display: grid;
+  gap: 16px;
+  margin: 30px 0;
+}
+.auth-form label {
+  display: grid;
+  gap: 8px;
+  color: #3c5274;
+  font-size: 12px;
+  font-weight: 800;
+}
+.auth-form input {
+  height: 45px;
+  border: 1px solid #d9e3f0;
+  border-radius: 9px;
+  padding: 0 13px;
+  color: #152a4e;
+  background: var(--color-surface);
+}
+.auth-form input:focus {
+  outline: 3px solid #e2edff;
+  border-color: #6b9ee9;
+}
+.auth-form .button {
+  width: 100%;
+  justify-content: center;
+  min-height: 46px;
+}
+.auth-error {
+  padding: 11px 13px;
+  background: #fff2f2;
+  border: 1px solid #f4d8d8;
+  border-radius: 8px;
+  color: #ad3c49;
+  font-size: 12px;
+}
+.auth-demo {
+  border-top: 1px solid #e9eef5;
+  padding-top: 23px;
+  color: #344b6c;
+}
+.auth-demo strong {
+  font-size: 12px;
+}
+.auth-demo p {
+  font-size: 12px;
+  color: #8190a5;
+  line-height: 1.6;
+  margin: 7px 0;
+}
+.auth-demo small {
+  font-size: 10px;
+  color: #a3afbf;
+}
+.auth-aside {
+  background:
+    radial-gradient(circle at 80% 20%, #4571d5 0%, transparent 40%), linear-gradient(140deg, #193871, #0d1d3e);
+  color: #fff;
+  padding: clamp(40px, 7vw, 120px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.auth-aside > span {
+  font-size: 11px;
+  letter-spacing: 0.17em;
+  color: #b9d0fd;
+  font-weight: 800;
+}
+.auth-aside h2 {
+  font-size: clamp(35px, 4vw, 58px);
+  line-height: 1.17;
+  max-width: 650px;
+  margin: 25px 0;
+}
+.auth-aside p {
+  font-size: 16px;
+  color: #c5d5f4;
+  max-width: 530px;
+}
+.auth-aside > div {
+  display: grid;
+  gap: 16px;
+  margin-top: 65px;
+  font-size: 13px;
+  color: #ecf3ff;
+}
+.auth-aside > div span {
+  padding-top: 16px;
+  border-top: 1px solid #ffffff33;
+}
+.signed-in-label {
+  font-size: 11px;
+  color: #50627f;
+  white-space: nowrap;
+}
+.signout-button {
+  border: 1px solid #dfe6f1;
+  background: var(--color-surface);
+  border-radius: 7px;
+  color: #2c538f;
+  padding: 8px 10px;
+  font-size: 10px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.access-user-list {
+  max-height: 320px;
+  overflow: auto;
+}
+.access-user-list .branch-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.access-user-list .branch-row strong {
+  min-width: 105px;
+  font-size: 12px;
+}
+.access-user-list .branch-row span {
+  font-size: 11px;
+  color: #657793;
+}
+.access-user-list .branch-row small {
+  margin-left: auto;
+  color: #93a0b4;
+}
+.access-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 14px 0 22px;
+}
+.access-form label {
+  display: grid;
+  gap: 6px;
+  color: #4d6282;
+  font-size: 11px;
+  font-weight: 800;
+}
+.access-form input,
+.access-form select {
+  height: 40px;
+  border: 1px solid #dce4ef;
+  border-radius: 7px;
+  padding: 8px;
+  color: #243b65;
+  background: var(--color-surface);
+}
+.access-form .auth-error,
+.access-form .info-strip {
+  grid-column: 1/-1;
+}
+.access-form .button {
+  justify-content: center;
+}
+.access-form label:has(input[type='password']) {
+  grid-column: 1/-1;
+}

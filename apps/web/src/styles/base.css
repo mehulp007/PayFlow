@@ -1,0 +1,60 @@
+:root {
+  font-family: var(--font-body);
+  color: var(--color-text);
+  background: var(--color-canvas);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading);
+}
+h1 {
+  font-size: 27px;
+  letter-spacing: -0.04em;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+h2 {
+  font-size: 16px;
+  letter-spacing: -0.025em;
+  margin-bottom: 5px;
+}
+h3 {
+  font-size: 14px;
+  margin: 25px 0 13px;
+}
+p {
+  line-height: 1.55;
+}
+svg {
+  flex: none;
+}

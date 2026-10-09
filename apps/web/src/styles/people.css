@@ -1,0 +1,89 @@
+.people-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 270px;
+  gap: 15px;
+  align-items: start;
+}
+.people-list .panel-title {
+  padding-bottom: 16px;
+}
+.people-side {
+  padding: 25px;
+}
+.people-side h2 {
+  margin-top: 15px;
+}
+.people-side p {
+  font-size: 11px;
+  color: #8492a9;
+}
+.side-illustration {
+  width: 67px;
+  height: 67px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #eaf1ff;
+  color: #2d62c8;
+}
+.side-benefit {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 10px;
+  color: #536886;
+  border-top: 1px solid #ebeff6;
+  padding: 12px 0;
+}
+.side-benefit svg {
+  color: #4278ca;
+}
+.employee-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.mini-avatar {
+  width: 27px;
+  height: 27px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.employee-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  background: #f6f9ff;
+  border-radius: 10px;
+}
+.large-avatar {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  color: #315caa;
+  background: #e5efff;
+  border-radius: 13px;
+}
+.employee-summary strong,
+.employee-summary span {
+  display: block;
+}
+.employee-summary strong {
+  font-size: 13px;
+}
+.employee-summary div > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #8493aa;
+  font-size: 10px;
+  margin-top: 5px;
+}
+.drawer-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}

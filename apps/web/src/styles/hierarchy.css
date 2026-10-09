@@ -1,0 +1,248 @@
+.hierarchy-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 13px;
+  margin-bottom: 17px;
+}
+.hierarchy-metrics > .panel {
+  padding: 17px 19px;
+  background: linear-gradient(120deg, #fff, #f4f7fe);
+}
+.hierarchy-metrics span,
+.hierarchy-metrics strong,
+.hierarchy-metrics small {
+  display: block;
+}
+.hierarchy-metrics span {
+  color: #657894;
+  font-size: 10px;
+  font-weight: 800;
+}
+.hierarchy-metrics strong {
+  font: 800 23px Manrope;
+  color: #183c81;
+  margin: 5px 0;
+}
+.hierarchy-metrics small {
+  color: #96a5b9;
+  font-size: 10px;
+}
+.hierarchy-map .panel-title > svg {
+  color: #3368c5;
+}
+.hierarchy-legend {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 0 20px 15px;
+}
+.hierarchy-legend-chip {
+  border: 1px solid #dfe7f2;
+  background: #f7f9fd;
+  color: #65748e;
+  border-radius: 20px;
+  padding: 7px 11px;
+  font-size: 10px;
+  font-weight: 800;
+}
+.hierarchy-legend-chip.selected,
+.hierarchy-level-types button.selected {
+  background: #e7f0ff;
+  border-color: #9cbbef;
+  color: #1f53af;
+}
+.hierarchy-levels {
+  padding: 0 17px 18px;
+}
+.hierarchy-level {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 10px;
+  border-top: 1px solid #edf1f6;
+  padding: 8px 0;
+}
+.hierarchy-level-name {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  padding: 8px;
+  color: #213a65;
+}
+.hierarchy-level-name:hover,
+.hierarchy-level-name.selected {
+  background: #eff5ff;
+  border-color: #d9e7fb;
+}
+.hierarchy-level-name > span {
+  display: grid;
+  place-items: center;
+  background: #e4edff;
+  border-radius: 7px;
+  width: 29px;
+  height: 29px;
+  color: #2258b6;
+  font-size: 10px;
+  font-weight: 800;
+}
+.hierarchy-level-name strong {
+  font-size: 11px;
+  flex: 1;
+}
+.hierarchy-level-name small {
+  font-size: 9px;
+  color: #91a0b4;
+  white-space: nowrap;
+}
+.hierarchy-level-types {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+.hierarchy-level-types button {
+  border: 1px solid #e7edf5;
+  background: #fbfcff;
+  border-radius: 7px;
+  padding: 7px 5px;
+  color: #697b96;
+}
+.hierarchy-level-types button strong,
+.hierarchy-level-types button span {
+  display: block;
+}
+.hierarchy-level-types button strong {
+  font-size: 12px;
+  color: #23477f;
+}
+.hierarchy-level-types button span {
+  font-size: 8px;
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hierarchy-directory {
+  margin-top: 17px;
+}
+.hierarchy-filters {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 0 18px 15px;
+}
+.hierarchy-filters .table-search {
+  min-width: 210px;
+  max-width: none;
+  flex: 1;
+}
+.hierarchy-filters select {
+  border: 1px solid #dfe7f2;
+  border-radius: 7px;
+  background: var(--color-surface);
+  color: #506587;
+  font-size: 10px;
+  padding: 7px;
+  min-height: 35px;
+}
+.hierarchy-directory table {
+  min-width: 1150px;
+}
+.hierarchy-empty {
+  padding: 30px;
+  text-align: center;
+  color: #8a9bb0;
+  font-size: 11px;
+}
+.hierarchy-detail-banner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: #edf4ff;
+  border: 1px solid #dce9fb;
+  border-radius: 10px;
+  padding: 15px;
+}
+.hierarchy-detail-banner > span {
+  display: grid;
+  place-items: center;
+  width: 37px;
+  height: 37px;
+  border-radius: 9px;
+  background: #265aba;
+  color: #fff;
+  font-weight: 800;
+  font-size: 12px;
+}
+.hierarchy-detail-banner strong,
+.hierarchy-detail-banner small {
+  display: block;
+}
+.hierarchy-detail-banner strong {
+  font-size: 13px;
+}
+.hierarchy-detail-banner small {
+  color: #748bb0;
+  font-size: 10px;
+  margin-top: 4px;
+}
+.hierarchy-add-drawer {
+  width: min(590px, 100%);
+}
+.hierarchy-form h3 {
+  margin: 20px 0 10px;
+}
+.hierarchy-form > label,
+.hierarchy-form-grid > label {
+  display: grid;
+  gap: 6px;
+  color: #4d6282;
+  font-size: 10px;
+  font-weight: 800;
+  margin-bottom: 11px;
+}
+.hierarchy-form input,
+.hierarchy-form select {
+  border: 1px solid #dce4ef;
+  border-radius: 7px;
+  padding: 10px;
+  color: #243b65;
+  background: var(--color-surface);
+  outline: none;
+  width: 100%;
+  font-size: 11px;
+}
+.hierarchy-form input:focus,
+.hierarchy-form select:focus {
+  border-color: #6795e7;
+  box-shadow: 0 0 0 3px #e9f2ff;
+}
+.hierarchy-form input[readonly] {
+  background: #f4f7fb;
+  color: #7e8da4;
+}
+.hierarchy-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 11px;
+}
+.hierarchy-form .info-strip {
+  margin: 12px 0;
+}
+.hierarchy-checks {
+  display: flex;
+  gap: 18px;
+  margin: 12px 0;
+}
+.hierarchy-checks label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #4d6282;
+}
+.hierarchy-checks input {
+  width: auto;
+}
