@@ -4,6 +4,8 @@ import { ageOn, annualIncomeTax } from './tax.js';
 import type { EmployeePayrollProfile, PayrollInput, PayrollLine, PayrollPeriod } from './types.js';
 
 export const RULE_VERSION = `IN-TY2026-27-v2+${STATE_RULES_VERSION}`;
+/** The tax year whose rates and thresholds this rule pack was reviewed against (April 2026 – March 2027). */
+export const REVIEWED_TAX_YEAR = { startYear: 2026, label: '2026–27' } as const;
 
 /** Months of the Indian tax year (April = 1 … March = 12) up to and including `month`. */
 export function taxYearMonthIndex(month: number): number {
@@ -137,6 +139,21 @@ export function calculatePayroll(
   }
   if (gross > regularMonthly * 1.5) {
     flags.push({ code: 'HIGH_VARIANCE', severity: 'warning', message: 'Pay is over 50% above regular monthly salary' });
+  }
+  const taxYearStart = period.month >= 4 ? period.year : period.year - 1;
+  if (taxYearStart !== REVIEWED_TAX_YEAR.startYear) {
+    flags.push({
+      code: 'RULES_NOT_REVIEWED',
+      severity: 'warning',
+      message: `Rates are reviewed for tax year ${REVIEWED_TAX_YEAR.label} only; verify rules for this period`,
+    });
+  }
+  if (employee.exitDate && employee.exitDate.slice(0, 7) === periodStart.slice(0, 7)) {
+    flags.push({
+      code: 'FINAL_SETTLEMENT',
+      severity: 'warning',
+      message: `Leaves on ${employee.exitDate}: wages are due within two working days of exit (Code on Wages, s. 17(2))`,
+    });
   }
 
   return {

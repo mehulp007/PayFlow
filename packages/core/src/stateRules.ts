@@ -145,3 +145,39 @@ export function labourWelfareFund(args: {
 }
 
 export const SUPPORTED_STATES = Object.keys(professionalTaxRules);
+
+/** Plain-language summary of each state's rules, for display. Kept beside the rules so both change together. */
+export const STATE_RULE_SUMMARIES: Record<string, { professionalTax: string[]; labourWelfareFund: string }> = {
+  Karnataka: {
+    professionalTax: [
+      'Nil below ₹25,000 gross a month',
+      '₹200 a month from ₹25,000',
+      '₹300 in February (₹2,500 a year)',
+    ],
+    labourWelfareFund: '₹50 employee + ₹100 employer, deducted in December',
+  },
+  Maharashtra: {
+    professionalTax: [
+      'Men: nil to ₹7,500 · ₹175 to ₹10,000 · ₹200 above',
+      'Women: nil to ₹25,000 · ₹200 above',
+      '₹300 in February instead of ₹200 (₹2,500 a year)',
+    ],
+    labourWelfareFund: '₹25 employee + ₹75 employer, deducted in June and December',
+  },
+  'Tamil Nadu': {
+    professionalTax: [
+      'Half-yearly, on six months of income (Greater Chennai Corporation)',
+      'Nil to ₹21,000 · ₹180 · ₹425 · ₹930 · ₹1,025 · ₹1,250 above ₹75,000',
+      'Deducted in September and March',
+    ],
+    labourWelfareFund: '₹20 employee + ₹40 employer, deducted in December',
+  },
+  'West Bengal': {
+    professionalTax: ['Nil to ₹10,000 · ₹110 to ₹15,000 · ₹130 to ₹25,000', '₹150 to ₹40,000 · ₹200 above'],
+    labourWelfareFund: '₹3 employee + ₹30 employer, deducted in June and December',
+  },
+  Haryana: {
+    professionalTax: ['Not levied'],
+    labourWelfareFund: '0.2% of wages up to ₹35 a month (from January 2026); employer pays twice the employee share',
+  },
+};

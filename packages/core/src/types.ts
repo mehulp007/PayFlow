@@ -10,6 +10,8 @@ export interface EmployeePayrollProfile {
   state: string;
   payGroup: string;
   joinDate: string;
+  /** Last working day, when the person has left or is leaving. */
+  exitDate?: string | null;
   dateOfBirth: string;
   /** Needed for Maharashtra professional tax, which exempts women earning up to ₹25,000. */
   gender: Gender | null;

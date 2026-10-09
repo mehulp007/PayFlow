@@ -268,3 +268,24 @@ describe('payroll line', () => {
         }
   });
 });
+
+describe('review flags', () => {
+  test('periods outside the reviewed tax year are flagged', () => {
+    const line = calculatePayroll(employee({ bankReady: true }), input(), {
+      year: 2027,
+      month: 4,
+      paymentDate: '2027-04-30',
+    });
+    assert.ok(line.flags.some(flag => flag.code === 'RULES_NOT_REVIEWED'));
+    const march = calculatePayroll(employee({ bankReady: true }), input(), {
+      year: 2027,
+      month: 3,
+      paymentDate: '2027-03-31',
+    });
+    assert.ok(!march.flags.some(flag => flag.code === 'RULES_NOT_REVIEWED'));
+  });
+  test('an exit in the period reminds payroll of the two-day final settlement', () => {
+    const line = calculatePayroll(employee({ bankReady: true, exitDate: '2026-10-20' }), input(), october);
+    assert.ok(line.flags.some(flag => flag.code === 'FINAL_SETTLEMENT' && flag.message.includes('2026-10-20')));
+  });
+});
