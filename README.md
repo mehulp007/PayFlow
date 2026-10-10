@@ -4,6 +4,7 @@
 ![Node.js 24](https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 ![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 PayFlow runs the monthly payroll of an Indian company, from employee records to the bank file. Anyone can sign up,
 load a generated sample company and act as HR, payroll, Finance, an auditor or an employee. It calculates income tax
@@ -172,16 +173,6 @@ installs Chromium.
 Set `DATABASE_URL` to use a PostgreSQL server instead of the embedded database. The other settings (data folder,
 demo size, ports, rate limits) are listed in the [architecture walkthrough](docs/architecture.md#configuration).
 
-## How it was rebuilt
+## License
 
-PayFlow began as my first project as a computer science student: one hard-coded company, one pay run, single-line JSX and CSS files and a
-mobile client. It was rebuilt in phases, each committed and pushed when its tests passed, keeping the original look.
-
-| Phase                      | Scope                                                                                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 · Baseline               | Rebrand to PayFlow, remove hosting and mobile code, run locally with zero setup                                                                   |
-| Compliance review          | Rules brought up to October 2026: Labour Codes wages, the ₹25,000 EPF ceiling with the September split, ESI periods, state PT and LWF             |
-| 1 · Engineering foundation | Shared schemas, Drizzle migrations, modular Fastify API, React Router and TanStack Query, readable components and CSS, tests, ESLint, CI          |
-| 2 · Multi-tenant sandbox   | Sign-up and sample companies, tenant isolation, invitations, pay periods with send-back, pay and close, salary revisions, exits, year-to-date TDS |
-| 3 · Features               | PDF payslips, regime calculator and Form 124, analytics, OSH Code leave, notifications, Ctrl K, dark mode, audit log, multi-organization sign-in  |
-| 4 · Docs polish            | Architecture walkthrough, phone layouts, final screenshots, and a recheck of the rules (West Bengal's October 2026 PT schedule)                   |
+[MIT](LICENSE) © 2026 Mehul Patil
