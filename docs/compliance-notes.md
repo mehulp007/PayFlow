@@ -3,8 +3,9 @@
 PayFlow is a portfolio project. It runs on **synthetic data only** and must not be used to pay real people,
 produce statutory filings, or store real employee, salary, tax or bank details.
 
-The calculation rules were **reviewed in October 2026** against the regulations below. Rule version:
-`IN-TY2026-27-v3+IN-STATES-2026-10` (shown on every payroll line). Rules change by notification, so verify
+The calculation rules were **reviewed in October 2026** (rechecked on 10 October 2026, when West Bengal's new
+professional tax schedule was added) against the regulations below. Rule version:
+`IN-TY2026-27-v3+IN-STATES-2026-10b` (shown on every payroll line). Rules change by notification, so verify
 against the official portals before relying on any figure.
 
 ## What the rule pack implements
@@ -72,13 +73,13 @@ Employees choose their regime while the month's run is a draft.
 
 ### State rules: professional tax and labour welfare fund
 
-| State       | Professional tax                                                                               | Labour welfare fund (employee + employer)                        |
-| ----------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Karnataka   | ₹200/month from ₹25,000 gross; ₹300 in February (2025 amendment)                               | ₹50 + ₹100, December                                             |
-| Maharashtra | Men: ₹175 (₹7,501–10,000), ₹200 above; women exempt up to ₹25,000; ₹300 in February            | ₹25 + ₹75, June and December                                     |
-| Tamil Nadu  | Greater Chennai Corporation half-yearly slab (₹180 to ₹1,250), deducted in September and March | ₹20 + ₹40, December                                              |
-| West Bengal | ₹110 / ₹130 / ₹150 / ₹200 monthly slabs above ₹10,000                                          | ₹3 + ₹30, June and December                                      |
-| Haryana     | Not levied                                                                                     | 0.2% of wages up to ₹35 (from Jan 2026), employer twice, monthly |
+| State       | Professional tax                                                                                                                                                                   | Labour welfare fund (employee + employer)                        |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Karnataka   | ₹200/month from ₹25,000 gross; ₹300 in February (2025 amendment)                                                                                                                   | ₹50 + ₹100, December                                             |
+| Maharashtra | Men: ₹175 (₹7,501–10,000), ₹200 above; women exempt up to ₹25,000; ₹300 in February                                                                                                | ₹25 + ₹75, June and December                                     |
+| Tamil Nadu  | Greater Chennai Corporation half-yearly slab (₹180 to ₹1,250), deducted in September and March                                                                                     | ₹20 + ₹40, December                                              |
+| West Bengal | From 1 Oct 2026 (Notification 1607-F.T.): nil to ₹20,000, ₹100 to ₹30,000, ₹140 to ₹50,000, ₹170 to ₹1,00,000, ₹208 above. Earlier months: ₹110 / ₹130 / ₹150 / ₹200 above ₹10,000 | ₹3 + ₹30, June and December                                      |
+| Haryana     | Not levied                                                                                                                                                                         | 0.2% of wages up to ₹35 (from Jan 2026), employer twice, monthly |
 
 States without a reviewed rule are **blocked** until rules are added: branches can only be created in the five
 states above, and each organization's compliance page lists the rules for its own states. The rule pack is
@@ -151,6 +152,7 @@ paid and loss-of-pay days. Built-in PDF fonts have no rupee sign, so amounts are
 - [ESIC contribution rules](https://www.esic.gov.in/contribution) · [ESI ceiling unchanged at ₹21,000](https://www.indianhrm.com/payroll-compliance-updates/esi-ceiling-holds-21000)
 - [Labour Codes in force from 21 November 2025](https://www.cyrilshroff.com/wp-content/uploads/2025/12/Guide-to-the-Labour-Codes.pdf) · [The 50% wage rule](https://ssrana.in/articles/understanding-the-50-wage-rule-under-the-code-on-wages-2019-a-cap-on-exclusions-not-a-ceiling-on-wages/)
 - [Karnataka PT amendment 2025](https://lexplosion.in/karnataka-govt-notifies-revised-professional-tax-rate-under-karnataka-tax-on-profession-trades-callings-and-employments-amendment-act-2025/) · [Maharashtra PT amendment 2023](https://khaitanco.com/thought-leaderships/Maharashtra-Professional-Tax-Amendment-2023-Key-Takeaways) · [Chennai PT revision](https://ascent-hr.com/notification/professional-tax-slab-revision-chennai/)
+- [West Bengal PT schedule 2026 (1407-F.T.)](https://wbxpress.com/schedule-rates-tax-professions-trades-callings-employments-2026/) · [Effective 1 October 2026](https://unitedconsultancy.com/revision-of-west-bengal-professional-tax-rates-effective-from-01st-october-2026/) · [Final notification 1607-F.T.](https://www.dcpsol.com/west-bengal-professional-tax-slabs-revised-2026-notification-1607-ft)
 - [Haryana LWF cap from 1 January 2026](https://www.sgcms.com/regulatory-updates/haryana-labour-welfare-board-revises-contribution-limits-effective-01-01-2026/) · [West Bengal LWF revision](https://www.zimyo.com/resources/insights/revised-contribution-rates-for-labour-welfare-fund-lwf-in-west-bengal/) · [State LWF overview](https://futurexsolutions.com/labour-welfare-fund-india-2026-state-wise-guide/)
 
 ## Exports

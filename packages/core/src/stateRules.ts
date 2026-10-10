@@ -7,7 +7,7 @@ const roundRupee = (paise: number): Money => Math.round(paise / 100) * 100;
  * State rule pack for salaried employees, reviewed October 2026. Amounts are per employee.
  * Rates change by state notification; verify against the state portal before live use.
  */
-export const STATE_RULES_VERSION = 'IN-STATES-2026-10';
+export const STATE_RULES_VERSION = 'IN-STATES-2026-10b';
 
 // ---------------------------------------------------------------------------
 // Professional tax
@@ -17,10 +17,14 @@ type Slab = { upTo: Money; amount: Money };
 const slabAmount = (value: Money, slabs: Slab[]): Money =>
   (slabs.find(slab => value <= slab.upTo) ?? slabs[slabs.length - 1]).amount;
 const ABOVE = Number.MAX_SAFE_INTEGER;
+/** West Bengal's revised salary slabs start with October 2026 wages. */
+const WEST_BENGAL_2026_FROM = '2026-10-01';
 
 export interface ProfessionalTaxArgs {
   state: string;
   month: number;
+  /** First day of the pay month, for rules that change on a date. Defaults to the current schedule. */
+  date?: string;
   /** Gross salary for the month. */
   monthlyGross: Money;
   gender: Gender | null;
@@ -79,17 +83,30 @@ const professionalTaxRules: Record<string, (args: ProfessionalTaxArgs) => RuleRe
       note: 'Tamil Nadu PT (Greater Chennai Corporation): half-yearly slab',
     };
   },
-  // West Bengal State Tax on Professions, Trades, Callings and Employments Act, 1979.
-  'West Bengal': ({ monthlyGross }) => ({
-    amount: slabAmount(monthlyGross, [
-      { upTo: R(10000), amount: 0 },
-      { upTo: R(15000), amount: R(110) },
-      { upTo: R(25000), amount: R(130) },
-      { upTo: R(40000), amount: R(150) },
-      { upTo: ABOVE, amount: R(200) },
-    ]),
-    note: 'West Bengal PT: monthly slab',
-  }),
+  // West Bengal State Tax on Professions, Trades, Callings and Employments Act, 1979. The schedule notified by
+  // 1407-F.T. (18 August 2026, made final by 1607-F.T. of 16 September 2026) applies to salaries from 1 October 2026.
+  'West Bengal': ({ monthlyGross, date }) =>
+    !date || date >= WEST_BENGAL_2026_FROM
+      ? {
+          amount: slabAmount(monthlyGross, [
+            { upTo: R(20000), amount: 0 },
+            { upTo: R(30000), amount: R(100) },
+            { upTo: R(50000), amount: R(140) },
+            { upTo: R(100000), amount: R(170) },
+            { upTo: ABOVE, amount: R(208) },
+          ]),
+          note: 'West Bengal PT: monthly slab from 1 October 2026',
+        }
+      : {
+          amount: slabAmount(monthlyGross, [
+            { upTo: R(10000), amount: 0 },
+            { upTo: R(15000), amount: R(110) },
+            { upTo: R(25000), amount: R(130) },
+            { upTo: R(40000), amount: R(150) },
+            { upTo: ABOVE, amount: R(200) },
+          ]),
+          note: 'West Bengal PT: monthly slab (schedule before October 2026)',
+        },
   Haryana: () => ({ amount: 0, note: 'Haryana does not levy professional tax' }),
 };
 
@@ -173,7 +190,11 @@ export const STATE_RULE_SUMMARIES: Record<string, { professionalTax: string[]; l
     labourWelfareFund: '₹20 employee + ₹40 employer, deducted in December',
   },
   'West Bengal': {
-    professionalTax: ['Nil to ₹10,000 · ₹110 to ₹15,000 · ₹130 to ₹25,000', '₹150 to ₹40,000 · ₹200 above'],
+    professionalTax: [
+      'From 1 October 2026: nil to ₹20,000 · ₹100 to ₹30,000 · ₹140 to ₹50,000',
+      '₹170 to ₹1,00,000 · ₹208 above (Notification 1607-F.T.)',
+      'Before October 2026: ₹110 / ₹130 / ₹150 / ₹200 above ₹10,000',
+    ],
     labourWelfareFund: '₹3 employee + ₹30 employer, deducted in June and December',
   },
   Haryana: {

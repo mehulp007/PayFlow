@@ -180,9 +180,27 @@ describe('professional tax', () => {
     assert.equal(pt('Tamil Nadu', 50000, 3), R(1250));
     assert.equal(pt('Tamil Nadu', 50000, 10), 0);
   });
-  test('West Bengal slabs and Haryana nil', () => {
-    assert.equal(pt('West Bengal', 30000), R(150));
-    assert.equal(pt('West Bengal', 45000), R(200));
+  test('West Bengal: the revised slabs apply to salaries from 1 October 2026', () => {
+    const wb = (monthlyGross: number, date: string) =>
+      professionalTax({
+        state: 'West Bengal',
+        month: Number(date.slice(5, 7)),
+        date,
+        monthlyGross: R(monthlyGross),
+        gender: 'male',
+      })?.amount;
+    assert.deepEqual(
+      [20000, 30000, 45000, 100000, 100001].map(gross => wb(gross, '2026-10-01')),
+      [0, R(100), R(140), R(170), R(208)],
+    );
+    assert.deepEqual(
+      [10000, 15000, 25000, 30000, 45000].map(gross => wb(gross, '2026-09-01')),
+      [0, R(110), R(130), R(150), R(200)],
+    );
+    const line = calculatePayroll(employee({ state: 'West Bengal', branch: 'Kolkata' }), input(), october);
+    assert.equal(line.professionalTax, R(140)); // ₹50,000 gross
+  });
+  test('Haryana levies no professional tax', () => {
     assert.equal(pt('Haryana', 90000), 0);
   });
   test('unknown states have no rule', () => {

@@ -36,11 +36,19 @@ function taxMonths(employee: EmployeePayrollProfile, period: PayrollPeriod) {
 }
 
 /** Professional tax over the months employed in the tax year, at the regular monthly gross. */
-function annualProfessionalTax(employee: EmployeePayrollProfile, regularMonthly: Money, months: number): Money {
+function annualProfessionalTax(
+  employee: EmployeePayrollProfile,
+  period: PayrollPeriod,
+  regularMonthly: Money,
+  months: number,
+): Money {
+  const startYear = period.month >= 4 ? period.year : period.year - 1;
   let year = 0;
-  for (let month = 1; month <= 12; month++) {
+  for (let index = 0; index < 12; index++) {
+    const month = ((index + 3) % 12) + 1; // April to March
+    const date = monthStart(month >= 4 ? startYear : startYear + 1, month);
     year +=
-      professionalTax({ state: employee.state, month, monthlyGross: regularMonthly, gender: employee.gender })
+      professionalTax({ state: employee.state, month, date, monthlyGross: regularMonthly, gender: employee.gender })
         ?.amount ?? 0;
   }
   return Math.round((year * months) / 12);
@@ -71,7 +79,7 @@ export function projectTax(
           annualBasic: employee.monthlyBasic * monthsInYear,
           annualHra: employee.monthlyHra * monthsInYear,
           annualEmployeePf: current.monthlyEmployeePf * monthsInYear,
-          annualProfessionalTax: annualProfessionalTax(employee, regularMonthly, monthsInYear),
+          annualProfessionalTax: annualProfessionalTax(employee, period, regularMonthly, monthsInYear),
           age,
         })
       : { lines: [], total: 0 };
@@ -142,6 +150,7 @@ export function calculatePayroll(
   const pt = professionalTax({
     state: employee.state,
     month: period.month,
+    date: periodStart,
     monthlyGross: gross,
     gender: employee.gender,
   });
