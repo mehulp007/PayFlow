@@ -91,7 +91,9 @@ export function AuditPage() {
             <RotateCcw size={15} /> Clear
           </button>
         </div>
-        <span className="result-count">{count(log.data?.total)} events</span>
+        <span className="result-count">
+          {count(log.data?.total)} {log.data?.total === 1 ? 'event' : 'events'}
+        </span>
         {log.data?.items.length ? (
           <div className="table-scroll">
             <table className="audit-table">

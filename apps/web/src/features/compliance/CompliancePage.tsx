@@ -51,7 +51,7 @@ export function CompliancePage() {
             Income-tax Act, 2025 · salary TDS section 392 · new regime default · Labour Codes in force from 21 Nov 2025
           </span>
         </div>
-        <Pill tone="info">Rule pack v2 · Oct 2026</Pill>
+        <Pill tone="info">Rule pack {rules?.ruleVersion.match(/-(v\d+)/)?.[1] ?? ''} · Oct 2026</Pill>
       </div>
       <div className="compliance-grid">
         {AREAS.map(item => (

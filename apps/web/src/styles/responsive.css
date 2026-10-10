@@ -70,13 +70,21 @@
   .content {
     padding: 22px 13px;
   }
+  /* On phones the search box becomes an icon button that opens the command palette. */
   .global-search {
-    width: 100%;
-    max-width: none;
+    flex: none;
+    width: 38px;
+    padding: 0;
+    justify-content: center;
+    margin-right: auto;
   }
+  .global-search > span,
   .global-search kbd,
   .top-actions select {
     display: none;
+  }
+  .topbar {
+    gap: 8px;
   }
   .top-actions {
     gap: 3px;

@@ -619,6 +619,9 @@ td.nowrap,
   .donut-layout {
     grid-template-columns: 1fr;
   }
+  .donut-layout {
+    padding: 0 20px 18px;
+  }
   .notifications {
     position: fixed;
     top: 70px;
